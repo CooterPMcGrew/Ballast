@@ -13,4 +13,13 @@ sets — zero-precision UI, no keyboard mid-workout.
 Expo (React Native) + TypeScript. See `CLAUDE.md` §4.
 
 ## Status
-Pre-scaffold. Feature spec and build brief complete; implementation not started.
+Scaffolded — Expo SDK 57 + TypeScript (strict), expo-router, dark-only shell.
+Design tokens, progression config, and domain types in place. Engine, store,
+and screens not yet built.
+
+## Run it
+```
+npm install
+npm start        # then scan the QR with Expo Go
+npm run typecheck
+```
