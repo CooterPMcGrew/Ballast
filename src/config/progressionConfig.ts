@@ -2,7 +2,7 @@
 // tunable constant (CLAUDE.md §5) — nothing hardcoded inline in the engine.
 // This is the difference between a system we can tune and a pile of guesses.
 
-import type { ExerciseClass } from '@/domain/types';
+import type { EquipmentTag, ExerciseClass } from '@/domain/types';
 
 /** Load cut applied when a deload fires (PRD D4). Default 10%, arbitrary but reasonable. */
 export const DELOAD_FRACTION = 0.1;
@@ -57,3 +57,40 @@ export const REST_DEFAULT_SEC_BY_CLASS: Record<ExerciseClass, number> = {
   compound: 180,
   isolation: 90,
 };
+
+/** Working sets per exercise until per-program set schemes exist. */
+export const SETS_PER_EXERCISE_DEFAULT = 3;
+
+/**
+ * First-session seed loads by equipment (PRD D2): rough starting estimates,
+ * NOT a conversion table presented as truth. The user corrects via steppers
+ * before the first set and the Post-Set loop corrects from there. Barbell =
+ * empty 20 kg bar; dumbbell is per-hand.
+ */
+export const SEED_LOAD_KG_BY_EQUIPMENT: Record<EquipmentTag, number> = {
+  barbell: 20,
+  dumbbell: 8,
+  kettlebell: 12,
+  machine: 20,
+  cable: 15,
+  bands: 0,
+  bodyweight: 0,
+  bench: 0,
+  rack: 0,
+  pullupBar: 0,
+};
+
+/**
+ * Which equipment tag decides the seed when an exercise carries several
+ * (e.g. barbell + bench): first match wins, ordered by how strongly the tag
+ * determines the working implement.
+ */
+export const SEED_EQUIPMENT_PRIORITY: readonly EquipmentTag[] = [
+  'barbell',
+  'dumbbell',
+  'kettlebell',
+  'machine',
+  'cable',
+  'bands',
+  'bodyweight',
+];

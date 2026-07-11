@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -64,10 +65,15 @@ function ExerciseGroup({ title, exercises }: { title: string; exercises: Exercis
     <View style={styles.group}>
       <Text style={styles.groupTitle}>{title}</Text>
       {exercises.map((exercise) => (
-        <View key={exercise.id} style={styles.row}>
+        <Pressable
+          key={exercise.id}
+          testID={`exercise-${exercise.id}`}
+          onPress={() => router.push({ pathname: '/workout', params: { exerciseId: exercise.id } })}
+          style={styles.row}
+        >
           <Text style={styles.rowName}>{exercise.name}</Text>
           <Text style={styles.rowMuscles}>{exercise.primaryMuscles.join(' · ')}</Text>
-        </View>
+        </Pressable>
       ))}
     </View>
   );
