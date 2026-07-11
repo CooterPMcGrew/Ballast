@@ -8,6 +8,8 @@ sets — zero-precision UI, no keyboard mid-workout.
 - `CLAUDE.md` — operating brief: design system, code conventions, physiology
   guardrails. **Read this first.**
 - `docs/PRD.md` — feature spec and the design decisions behind it.
+- `docs/DATA.md` — how to populate the exercise catalog and gym profiles
+  (editable JSON, allowed tags, validation rules).
 
 ## Stack
 Expo (React Native) + TypeScript. See `CLAUDE.md` §4.

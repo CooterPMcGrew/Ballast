@@ -1,0 +1,17 @@
+[
+  {
+    "id": "commercial",
+    "name": "Commercial Gym",
+    "equipment": ["barbell", "dumbbell", "kettlebell", "machine", "cable", "bodyweight", "bands", "bench", "rack", "pullupBar"]
+  },
+  {
+    "id": "home",
+    "name": "Home Gym",
+    "equipment": ["barbell", "dumbbell", "bodyweight", "bands", "bench", "rack", "pullupBar"]
+  },
+  {
+    "id": "hotel",
+    "name": "Hotel Gym",
+    "equipment": ["dumbbell", "machine", "cable", "bodyweight", "bench"]
+  }
+]

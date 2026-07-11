@@ -1,34 +1,9 @@
-// Default gym profiles (PRD §1). The selected profile globally filters the
-// exercise catalog. 'bodyweight' appears in every profile so availability
-// stays a plain subset check — no special-casing in the filter.
+// Gym profiles (PRD §1), loaded from hand-editable gymProfiles.json (format:
+// docs/DATA.md) and validated at module load. The first entry is the default
+// profile until persistence restores the last-used one.
 
+import rawProfiles from '@/data/gymProfiles.json';
+import { validateGymProfiles } from '@/data/catalogValidation';
 import type { GymProfile } from '@/domain/types';
 
-export const DEFAULT_GYM_PROFILES: readonly GymProfile[] = [
-  {
-    id: 'commercial',
-    name: 'Commercial Gym',
-    equipment: [
-      'barbell',
-      'dumbbell',
-      'kettlebell',
-      'machine',
-      'cable',
-      'bodyweight',
-      'bands',
-      'bench',
-      'rack',
-      'pullupBar',
-    ],
-  },
-  {
-    id: 'home',
-    name: 'Home Gym',
-    equipment: ['barbell', 'dumbbell', 'bodyweight', 'bands', 'bench', 'rack', 'pullupBar'],
-  },
-  {
-    id: 'hotel',
-    name: 'Hotel Gym',
-    equipment: ['dumbbell', 'machine', 'cable', 'bodyweight', 'bench'],
-  },
-] as const;
+export const DEFAULT_GYM_PROFILES: readonly GymProfile[] = validateGymProfiles(rawProfiles);

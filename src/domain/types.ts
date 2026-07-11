@@ -1,36 +1,45 @@
 // Core domain vocabulary. Types only — no logic. The progression engine,
 // recommender, and store all speak in these terms.
 
-export type MuscleGroup =
-  | 'chest'
-  | 'back'
-  | 'shoulders'
-  | 'biceps'
-  | 'triceps'
-  | 'forearms'
-  | 'quads'
-  | 'hamstrings'
-  | 'glutes'
-  | 'calves'
-  | 'core';
+// Runtime arrays are the single source of truth; the union types derive from
+// them. Keeps JSON catalog validation and future UI pickers enumerable
+// without restating the lists.
 
-export type EquipmentTag =
-  | 'barbell'
-  | 'dumbbell'
-  | 'kettlebell'
-  | 'machine'
-  | 'cable'
-  | 'bodyweight'
-  | 'bands'
-  | 'bench'
-  | 'rack'
-  | 'pullupBar';
+export const MUSCLE_GROUPS = [
+  'chest',
+  'back',
+  'shoulders',
+  'biceps',
+  'triceps',
+  'forearms',
+  'quads',
+  'hamstrings',
+  'glutes',
+  'calves',
+  'core',
+] as const;
+export type MuscleGroup = (typeof MUSCLE_GROUPS)[number];
+
+export const EQUIPMENT_TAGS = [
+  'barbell',
+  'dumbbell',
+  'kettlebell',
+  'machine',
+  'cable',
+  'bodyweight',
+  'bands',
+  'bench',
+  'rack',
+  'pullupBar',
+] as const;
+export type EquipmentTag = (typeof EQUIPMENT_TAGS)[number];
 
 /**
  * Determines the double-progression window and increment size
  * (see progressionConfig.PROGRESSION_BY_CLASS, PRD D1).
  */
-export type ExerciseClass = 'compound' | 'isolation';
+export const EXERCISE_CLASSES = ['compound', 'isolation'] as const;
+export type ExerciseClass = (typeof EXERCISE_CLASSES)[number];
 
 /**
  * Taxonomy (PRD §5): primary + secondary required; tertiary only where it
