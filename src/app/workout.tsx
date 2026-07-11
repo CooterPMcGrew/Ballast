@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -7,6 +7,14 @@ import { getExerciseById } from '@/data/exerciseCatalog';
 import type { SetFeedback } from '@/domain/types';
 import { loadStepKgForExercise, useAppStore } from '@/store/appStore';
 import { fontFamily, fontSize, palette, spacing, touchTarget } from '@/theme/tokens';
+
+/**
+ * The matrix renders where COMPLETE AS SUGGESTED just was, so a sweaty
+ * double-tap would register a phantom feedback (worst case: GRIND, which
+ * sits exactly under the thumb). Ignore matrix taps briefly after the
+ * phase switch.
+ */
+const MATRIX_ARM_DELAY_MS = 300;
 
 /**
  * Active workout — the core loop (PRD §2). Two phases per set:
@@ -25,6 +33,7 @@ export default function WorkoutScreen() {
   const completeSet = useAppStore((state) => state.completeSet);
 
   const [awaitingFeedback, setAwaitingFeedback] = useState(false);
+  const matrixArmedAtMs = useRef(0);
   const exercise = exerciseId ? getExerciseById(exerciseId) : undefined;
 
   useEffect(() => {
@@ -49,7 +58,15 @@ export default function WorkoutScreen() {
   const stepKg = loadStepKgForExercise(exercise.id);
   const isLastSet = setNumber === active.totalSets;
 
+  const onCompleteSet = () => {
+    matrixArmedAtMs.current = Date.now() + MATRIX_ARM_DELAY_MS;
+    setAwaitingFeedback(true);
+  };
+
   const onFeedback = (feedback: SetFeedback) => {
+    if (Date.now() < matrixArmedAtMs.current) {
+      return; // phantom tap from the phase switch — see MATRIX_ARM_DELAY_MS
+    }
     setAwaitingFeedback(false);
     completeSet(feedback); // clears activeExercise on the final set
     if (isLastSet) {
@@ -109,7 +126,7 @@ export default function WorkoutScreen() {
               <BigButton
                 label="COMPLETE AS SUGGESTED"
                 color={palette.schematicCyan}
-                onPress={() => setAwaitingFeedback(true)}
+                onPress={onCompleteSet}
               />
             </View>
           </>

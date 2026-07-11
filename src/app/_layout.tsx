@@ -12,13 +12,17 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
+import { useAppStore } from '@/store/appStore';
 import { palette } from '@/theme/tokens';
 
-// Keep the native splash up until fonts resolve, so the first painted frame
-// is already in the design language — no system-font flash.
+// Keep the native splash up until fonts AND persisted state resolve, so the
+// first painted frame is in the design language showing the user's own data —
+// no system-font flash, no wrong-profile flash.
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  const hydrated = useAppStore((state) => state.hydrated);
+  const hydrate = useAppStore((state) => state.hydrate);
   const [fontsLoaded, fontError] = useFonts({
     ChakraPetch_400Regular,
     ChakraPetch_600SemiBold,
@@ -27,17 +31,23 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
+    // hydrate() resolves even on storage failure (degrades to in-memory),
+    // so the splash can never wedge on a broken database.
+    void hydrate();
+  }, [hydrate]);
+
+  useEffect(() => {
     if (fontError) {
       // Degraded typography beats a hung splash screen: surface the failure
       // and continue with system fonts rather than blocking app open.
       console.error('Font load failed; falling back to system fonts', fontError);
     }
-    if (fontsLoaded || fontError) {
+    if ((fontsLoaded || fontError) && hydrated) {
       SplashScreen.hideAsync();
     }
-  }, [fontsLoaded, fontError]);
+  }, [fontsLoaded, fontError, hydrated]);
 
-  if (!fontsLoaded && !fontError) {
+  if ((!fontsLoaded && !fontError) || !hydrated) {
     return null; // native splash still covers the screen
   }
 

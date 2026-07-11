@@ -1,7 +1,7 @@
-// Single app store (CLAUDE.md §4). In-memory for now — SQLite persistence is
-// the next infrastructure step; until then state resets on app restart.
-// KNOWN GAP, not a design decision: PRD requires last-used profile and
-// history to survive restarts.
+// Single app store (CLAUDE.md §4). Hydrates from the platform persistence
+// driver at startup (SQLite on device, localStorage shim on dev web) and
+// writes through on every durable mutation. Persistence failures degrade to
+// in-memory operation — loudly, never silently.
 
 import { create } from 'zustand';
 
@@ -15,6 +15,7 @@ import {
   type ExerciseSessionResult,
 } from '@/engine/progression';
 import { seedLoadKgForExercise } from '@/engine/seeding';
+import { persistence } from '@/persistence';
 import type { GymProfile, SetFeedback } from '@/domain/types';
 
 /** One exercise mid-workout: the live prescription plus set-by-set feedback. */
@@ -29,12 +30,16 @@ export interface ActiveExercise {
 }
 
 interface AppState {
-  /** Manual selection is primary (PRD D6); defaults to first profile until persistence lands. */
+  /** False until persisted state has been loaded (or load has failed loudly). */
+  hydrated: boolean;
+  /** Manual selection is primary (PRD D6); last-used restored on launch. */
   selectedGymProfileId: string;
   /** Per-exercise session history, most recent last — the engine's only input. */
   sessionHistoryByExercise: Record<string, ExerciseSessionResult[]>;
   activeExercise: ActiveExercise | null;
 
+  /** Load persisted state; call once from the root layout. */
+  hydrate: () => Promise<void>;
   selectGymProfile: (profileId: string) => void;
   /** Prescribe from history, or seed on first encounter (PRD D2). */
   startExercise: (exerciseId: string) => void;
@@ -50,11 +55,34 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
+  hydrated: false,
   selectedGymProfileId: DEFAULT_GYM_PROFILES[0]!.id,
   sessionHistoryByExercise: {},
   activeExercise: null,
 
-  selectGymProfile: (profileId) => set({ selectedGymProfileId: profileId }),
+  hydrate: async () => {
+    try {
+      await persistence.init();
+      const persisted = await persistence.loadState();
+      set({
+        hydrated: true,
+        selectedGymProfileId: persisted.selectedGymProfileId ?? DEFAULT_GYM_PROFILES[0]!.id,
+        sessionHistoryByExercise: persisted.sessionHistoryByExercise,
+      });
+    } catch (error) {
+      // Degrade to in-memory defaults but keep the app usable; the failure
+      // is loud in dev and the next durable write will surface it again.
+      console.error('persistence: hydrate failed, running in-memory', error);
+      set({ hydrated: true });
+    }
+  },
+
+  selectGymProfile: (profileId) => {
+    set({ selectedGymProfileId: profileId });
+    persistence
+      .saveSelectedProfile(profileId)
+      .catch((error) => console.error('persistence: profile save failed', error));
+  },
 
   startExercise: (exerciseId) => {
     const exercise = getExerciseById(exerciseId);
@@ -124,6 +152,13 @@ export const useAppStore = create<AppState>((set, get) => ({
         ],
       },
     }));
+    persistence
+      .appendSession({
+        exerciseId: active.exerciseId,
+        ...result,
+        completedAtIso: new Date().toISOString(),
+      })
+      .catch((error) => console.error('persistence: session save failed', error));
   },
 
   abandonExercise: () => set({ activeExercise: null }),
