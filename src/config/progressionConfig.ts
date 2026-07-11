@@ -27,6 +27,13 @@ export const SCHEDULED_DELOAD_INTERVAL_WEEKS: number | null = null;
 export const EASY_INCREMENT_MULTIPLIER = 2;
 
 /**
+ * "Felt Easy" below the rep ceiling advances this many reps at once instead
+ * of the +1 a "Just Right" earns. Aggressive but stays inside the
+ * double-progression window (PRD D1).
+ */
+export const EASY_REP_JUMP = 2;
+
+/**
  * Double progression (PRD D1): advance reps within [repRangeLow, repRangeHigh];
  * on reaching the top, add incrementKg and drop back to the low end. Classes
  * differ by window and increment — NOT a weight-only vs reps-only split, which
