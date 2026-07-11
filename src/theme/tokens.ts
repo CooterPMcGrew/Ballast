@@ -20,6 +20,8 @@ export const palette = {
   hazard: '#E8623A',
   /** Labels, secondary text, inactive states. */
   slate: '#8FA0AE',
+  /** Primary reading text on gunmetal — near-white, cooled to match the ground. */
+  textPrimary: '#E6EDF3',
 } as const;
 
 // Chakra Petch = labels/buttons/headings; IBM Plex Mono = ALL numeric data
