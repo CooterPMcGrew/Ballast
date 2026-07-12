@@ -1,0 +1,59 @@
+# Cloud APK build — no local Android SDK required (dev machine is locked down).
+# Run manually: GitHub → Actions → "android-apk" → Run workflow.
+# Result: installable APK attached to the rolling "latest" release.
+#
+# Signing note: Expo's generated Gradle config signs release builds with the
+# debug keystore by default — installable for personal use, NOT Play-Store
+# ready. A real keystore is only needed if this ever goes to the Store.
+
+name: android-apk
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write # needed to attach the APK to a release
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+
+      - run: npm ci
+
+      # Generates the android/ project from app.json (android/ is gitignored;
+      # it is build output, regenerated fresh every run).
+      - run: npx expo prebuild --platform android --no-install
+
+      - run: ./gradlew assembleRelease
+        working-directory: android
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ballast-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
+
+      # Rolling "latest" prerelease so the phone always has one stable URL:
+      # https://github.com/CooterPMcGrew/Ballast/releases/tag/latest
+      - uses: softprops/action-gh-release@v2
+        if: github.event_name == 'workflow_dispatch'
+        with:
+          tag_name: latest
+          name: Ballast (latest build)
+          prerelease: true
+          files: android/app/build/outputs/apk/release/app-release.apk
