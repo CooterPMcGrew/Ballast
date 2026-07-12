@@ -9,7 +9,7 @@ import { loadStepKgForExercise, useAppStore } from '@/store/appStore';
 import { fontFamily, fontSize, palette, spacing, touchTarget } from '@/theme/tokens';
 
 /**
- * The matrix renders where COMPLETE AS SUGGESTED just was, so a sweaty
+ * The matrix renders where COMPLETE AS SUGGESTED just was, so an accidental
  * double-tap would register a phantom feedback (worst case: GRIND, which
  * sits exactly under the thumb). Ignore matrix taps briefly after the
  * phase switch.

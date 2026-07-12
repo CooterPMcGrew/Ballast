@@ -9,7 +9,7 @@ import type { ExerciseSessionResult } from '@/engine/progression';
 import type { SetFeedback } from '@/domain/types';
 import type { PersistedSessionRow, PersistedState, PersistenceDriver } from '@/persistence/types';
 
-const DB_NAME = 'sweaty-finger.db';
+const DB_NAME = 'ballast.db';
 
 interface SessionRow {
   exercise_id: string;

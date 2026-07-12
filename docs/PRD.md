@@ -1,4 +1,4 @@
-# Sweaty Finger — Product Requirements
+# Ballast — Product Requirements
 
 Source of truth for features. Operating rules and design system are in the root
 `CLAUDE.md`. Voice/hands-free operation is **out of scope for v1** — removed from
@@ -8,7 +8,7 @@ the original brainstorm intentionally.
 
 ## 0. Philosophy
 
-Zero-precision UI. The user is sweaty, tired, headphones on, glancing between
+Zero-precision UI. The user is tired, headphones on, glancing between
 sets. The app is an active auto-regulating trainer: it prescribes the next set,
 the user reports the result in one tap, the app adjusts. No standard keyboard
 during an active workout. Not a passive logbook.
@@ -109,7 +109,7 @@ not lost; enforcement lives in `CLAUDE.md` §6.
   scheduled deload (every N weeks).
 
 - **D5 — 3-button feedback trades resolution for reliability.** Collapsing
-  RPE/RIR (reps-in-reserve) to three states fits the Sweaty Finger principle and
+  RPE/RIR (reps-in-reserve) to three states fits the zero-precision principle and
   sidesteps the well-known noise in novice self-rated RPE. Accepted cost: you lose
   the ability to distinguish "hard, 2 in reserve" from "true failure," which
   reduces progression precision. Acceptable for v1.

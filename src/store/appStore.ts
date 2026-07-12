@@ -43,7 +43,7 @@ interface AppState {
   selectGymProfile: (profileId: string) => void;
   /** Prescribe from history, or seed on first encounter (PRD D2). */
   startExercise: (exerciseId: string) => void;
-  /** Stepper adjustments — the only mid-workout numeric input (Sweaty Finger). */
+  /** Stepper adjustments — the only mid-workout numeric input (zero-precision). */
   adjustLoad: (deltaKg: number) => void;
   adjustReps: (delta: number) => void;
   /**

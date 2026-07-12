@@ -47,7 +47,7 @@ export const fontSize = {
   caption: 12,
 } as const;
 
-// Sweaty Finger floors (CLAUDE.md §2): deliberately above the 44pt HIG / 48dp
+// Zero-precision floors (CLAUDE.md §2): deliberately above the 44pt HIG / 48dp
 // Material minimums because the user is tired and cannot aim.
 export const touchTarget = {
   primaryMinPt: 64,

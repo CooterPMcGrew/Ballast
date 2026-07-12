@@ -108,7 +108,7 @@ set one and the feedback loop takes it from there. Don't chase precision here.
 
 ## 6. On-device database (informational — you don't edit this)
 
-Workout results persist in SQLite on device (`sweaty-finger.db` in the app
+Workout results persist in SQLite on device (`ballast.db` in the app
 sandbox, via `expo-sqlite`):
 
 ```sql
@@ -122,7 +122,7 @@ exercise_sessions  (id INTEGER PK AUTOINCREMENT,
 ```
 
 `exercise_id` is why catalog ids must stay stable. The web dev preview uses a
-localStorage stand-in (`sweaty-finger-state-v1`) — dev convenience only; the
+localStorage stand-in (`ballast-state-v1`) — dev convenience only; the
 shipped app path is SQLite.
 
 ## 7. Out of scope for these files

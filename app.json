@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Sweaty Finger",
-    "slug": "sweaty-finger",
+    "name": "Ballast",
+    "slug": "ballast",
     "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "sweatyfinger",
+    "scheme": "ballast",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0B0F14",
     "ios": {

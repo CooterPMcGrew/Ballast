@@ -1,4 +1,4 @@
-# CLAUDE.md — Sweaty Finger
+# CLAUDE.md — Ballast
 
 Authoritative operating brief for this repository. Read `docs/PRD.md` for the
 feature spec. This file governs *how* you build; the PRD governs *what*.
@@ -9,14 +9,14 @@ feature spec. This file governs *how* you build; the PRD governs *what*.
 
 An auto-regulating strength-training app. Not a logbook. The app prescribes the
 next set, the user reports how it went in one tap, and the app adjusts the
-prescription. The user is sweaty, tired, and glancing at the screen between sets
-with headphones on.
+prescription. The user is tired, grip-compromised, and glancing at the screen
+between sets with headphones on.
 
 **Out of scope for v1:** voice control, social features, nutrition tracking,
 Apple Watch / wearable integration. Do not build these. Do not scaffold hooks
 for them.
 
-## 2. Governing principle — "Sweaty Finger"
+## 2. Governing principle — "Zero-Precision"
 
 Zero-precision interaction. Assume the user cannot aim.
 

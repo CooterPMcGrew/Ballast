@@ -1,8 +1,8 @@
-# Sweaty Finger
+# Ballast
 
 Auto-regulating strength-training app. Prescribes the next set, takes a one-tap
-result, adjusts the prescription. Built for a sweaty, tired user glancing between
-sets — zero-precision UI, no keyboard mid-workout.
+result, adjusts the prescription. Built for a tired, grip-compromised user
+glancing between sets — zero-precision UI, no keyboard mid-workout.
 
 ## Docs
 - `CLAUDE.md` — operating brief: design system, code conventions, physiology

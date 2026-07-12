@@ -7,7 +7,7 @@
 import type { ExerciseSessionResult } from '@/engine/progression';
 import type { PersistedSessionRow, PersistedState, PersistenceDriver } from '@/persistence/types';
 
-const STORAGE_KEY = 'sweaty-finger-state-v1';
+const STORAGE_KEY = 'ballast-state-v1';
 
 interface StoredBlob {
   selectedGymProfileId: string | null;
