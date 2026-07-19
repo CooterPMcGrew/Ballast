@@ -46,6 +46,32 @@ export function createDriver(): PersistenceDriver {
         );
         CREATE INDEX IF NOT EXISTS idx_sessions_by_exercise
           ON exercise_sessions (exercise_id, id);
+
+        -- Exercise catalog tables: schema only, deliberately UNPOPULATED.
+        -- The live catalog ships as exercises.json for now; these become the
+        -- authoritative store when user-defined exercises and per-profile
+        -- metrics (login, v2) arrive. Mirrors the Exercise domain type:
+        -- rep_range_low/high + increment_kg = per-exercise growth override
+        -- (NULL = class default); contributions = activation share 0–1.
+        CREATE TABLE IF NOT EXISTS exercises (
+          id             TEXT PRIMARY KEY NOT NULL,
+          name           TEXT NOT NULL,
+          exercise_class TEXT NOT NULL CHECK (exercise_class IN ('compound','isolation')),
+          rep_range_low  INTEGER,
+          rep_range_high INTEGER,
+          increment_kg   REAL
+        );
+        CREATE TABLE IF NOT EXISTS exercise_equipment (
+          exercise_id   TEXT NOT NULL REFERENCES exercises(id),
+          equipment_tag TEXT NOT NULL,
+          PRIMARY KEY (exercise_id, equipment_tag)
+        );
+        CREATE TABLE IF NOT EXISTS exercise_muscle_contributions (
+          exercise_id      TEXT NOT NULL REFERENCES exercises(id),
+          muscle_component TEXT NOT NULL,
+          share            REAL NOT NULL CHECK (share > 0 AND share <= 1),
+          PRIMARY KEY (exercise_id, muscle_component)
+        );
       `);
     },
 

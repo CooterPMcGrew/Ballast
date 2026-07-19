@@ -5,14 +5,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { DEFAULT_GYM_PROFILES } from '@/data/defaultGymProfiles';
 import { EXERCISE_CATALOG } from '@/data/exerciseCatalog';
 import { filterAvailableExercises } from '@/domain/equipment';
-import type { Exercise } from '@/domain/types';
+import { MUSCLE_GROUPS, type Exercise } from '@/domain/types';
 import { getProfileById, useAppStore } from '@/store/appStore';
 import { fontFamily, fontSize, palette, spacing, touchTarget } from '@/theme/tokens';
 
 /**
- * Home. Gym profile is a manual pick (PRD D6) that globally filters the
- * catalog. "Recommended for Today" arrives with the recommender; until then
- * the screen shows the honest state: the movement pool the profile unlocks.
+ * Home = session setup: pick the gym (globally filters the catalog, PRD D6),
+ * pick today's muscle group, go. The muscle grid is the screen's primary
+ * action — 64pt targets. The full movement pool stays below as the
+ * browse-anything fallback.
  */
 export default function HomeScreen() {
   const selectedProfileId = useAppStore((state) => state.selectedGymProfileId);
@@ -43,6 +44,20 @@ export default function HomeScreen() {
               </Pressable>
             );
           })}
+        </View>
+
+        <Text style={styles.kicker}>TRAIN TODAY</Text>
+        <View style={styles.muscleGrid}>
+          {MUSCLE_GROUPS.map((group) => (
+            <Pressable
+              key={group}
+              testID={`train-${group}`}
+              onPress={() => router.push({ pathname: '/session', params: { muscleGroup: group } })}
+              style={styles.muscleButton}
+            >
+              <Text style={styles.muscleButtonLabel}>{group.toUpperCase()}</Text>
+            </Pressable>
+          ))}
         </View>
 
         <View style={styles.poolHeader}>
@@ -123,6 +138,29 @@ const styles = StyleSheet.create({
   },
   chipLabelActive: {
     color: palette.schematicCyan,
+  },
+  muscleGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  // Session start is the screen's primary action: 64pt floor, two columns.
+  muscleButton: {
+    flexBasis: '47%',
+    flexGrow: 1,
+    minHeight: touchTarget.primaryMinPt,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: palette.schematicCyan,
+    borderRadius: 4,
+    backgroundColor: palette.surface,
+  },
+  muscleButtonLabel: {
+    color: palette.schematicCyan,
+    fontFamily: fontFamily.display,
+    fontSize: fontSize.body,
+    letterSpacing: 1,
   },
   poolHeader: {
     flexDirection: 'row',

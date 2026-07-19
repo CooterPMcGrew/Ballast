@@ -2,12 +2,9 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "expo-web",
-      "runtimeExecutable": "cmd.exe",
-      "runtimeArgs": [
-        "/c",
-        "set PATH=%LOCALAPPDATA%\\Programs\\nodejs;%PATH%&& npx expo start --web --port 8081"
-      ],
+      "name": "expo",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["expo", "start", "--port", "8081"],
       "port": 8081
     }
   ]

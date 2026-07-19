@@ -8,7 +8,9 @@ import {
   EASY_REP_JUMP,
   GRIND_REPEAT_TRIGGER_COUNT,
   PROGRESSION_BY_CLASS,
+  progressionWindowForExercise,
 } from '@/config/progressionConfig';
+import type { Exercise } from '@/domain/types';
 import {
   prescribeNextSession,
   seedPlan,
@@ -40,7 +42,7 @@ describe('worstFeedback', () => {
 
 describe('seedPlan', () => {
   it('starts at the rep floor with the supplied load', () => {
-    const plan = seedPlan('compound', 60);
+    const plan = seedPlan(COMPOUND, 60);
     expect(plan.loadKg).toBe(60);
     expect(plan.targetReps).toBe(COMPOUND.repRangeLow);
     expect(plan.rationale).toContain('baseline');
@@ -49,17 +51,17 @@ describe('seedPlan', () => {
 
 describe('prescribeNextSession', () => {
   it('throws on empty history — seeding must be explicit', () => {
-    expect(() => prescribeNextSession('compound', [])).toThrow('seedPlan');
+    expect(() => prescribeNextSession(COMPOUND, [])).toThrow('seedPlan');
   });
 
   it('justRight below ceiling → +1 rep, same load', () => {
-    const plan = prescribeNextSession('compound', [session(100, 7, 'justRight')]);
+    const plan = prescribeNextSession(COMPOUND, [session(100, 7, 'justRight')]);
     expect(plan).toMatchObject({ loadKg: 100, targetReps: 8 });
     expect(plan.rationale).toContain('+1 rep');
   });
 
   it('justRight at ceiling → +increment, reps back to floor', () => {
-    const plan = prescribeNextSession('compound', [
+    const plan = prescribeNextSession(COMPOUND, [
       session(100, COMPOUND.repRangeHigh, 'justRight'),
     ]);
     expect(plan).toMatchObject({
@@ -69,18 +71,18 @@ describe('prescribeNextSession', () => {
   });
 
   it('easy below ceiling → aggressive rep jump, capped at ceiling', () => {
-    const plan = prescribeNextSession('compound', [session(100, 7, 'easy')]);
+    const plan = prescribeNextSession(COMPOUND, [session(100, 7, 'easy')]);
     expect(plan.targetReps).toBe(Math.min(7 + EASY_REP_JUMP, COMPOUND.repRangeHigh));
     expect(plan.loadKg).toBe(100);
 
-    const nearCeiling = prescribeNextSession('compound', [
+    const nearCeiling = prescribeNextSession(COMPOUND, [
       session(100, COMPOUND.repRangeHigh - 1, 'easy'),
     ]);
     expect(nearCeiling.targetReps).toBe(COMPOUND.repRangeHigh);
   });
 
   it('easy at ceiling → multiplied increment, reps back to floor', () => {
-    const plan = prescribeNextSession('compound', [session(100, COMPOUND.repRangeHigh, 'easy')]);
+    const plan = prescribeNextSession(COMPOUND, [session(100, COMPOUND.repRangeHigh, 'easy')]);
     expect(plan).toMatchObject({
       loadKg: 100 + COMPOUND.incrementKg * EASY_INCREMENT_MULTIPLIER,
       targetReps: COMPOUND.repRangeLow,
@@ -89,7 +91,7 @@ describe('prescribeNextSession', () => {
   });
 
   it('single grind → repeat the same work, progression halted', () => {
-    const plan = prescribeNextSession('compound', [session(100, 6, 'grind')]);
+    const plan = prescribeNextSession(COMPOUND, [session(100, 6, 'grind')]);
     expect(plan).toMatchObject({ loadKg: 100, targetReps: 6 });
     expect(plan.rationale).toContain('repeat');
   });
@@ -98,7 +100,7 @@ describe('prescribeNextSession', () => {
     const history = Array.from({ length: GRIND_REPEAT_TRIGGER_COUNT }, () =>
       session(100, 6, 'grind'),
     );
-    const plan = prescribeNextSession('compound', history);
+    const plan = prescribeNextSession(COMPOUND, history);
     expect(plan.loadKg).toBe(100 * (1 - DELOAD_FRACTION));
     expect(plan.targetReps).toBe(COMPOUND.repRangeLow);
     expect(plan.rationale).toContain('deload');
@@ -109,7 +111,7 @@ describe('prescribeNextSession', () => {
     const history = Array.from({ length: GRIND_REPEAT_TRIGGER_COUNT }, () =>
       session(62.5, 6, 'grind'),
     );
-    const plan = prescribeNextSession('compound', history);
+    const plan = prescribeNextSession(COMPOUND, history);
     expect(plan.loadKg).toBe(55);
   });
 
@@ -117,12 +119,12 @@ describe('prescribeNextSession', () => {
     const history = Array.from({ length: GRIND_REPEAT_TRIGGER_COUNT * 2 }, () =>
       session(100, 6, 'grind'),
     );
-    const plan = prescribeNextSession('compound', history);
+    const plan = prescribeNextSession(COMPOUND, history);
     expect(plan.rationale).toContain('deload');
   });
 
   it('grind streak broken by a good session does not deload', () => {
-    const plan = prescribeNextSession('compound', [
+    const plan = prescribeNextSession(COMPOUND, [
       session(100, 6, 'grind'),
       session(100, 6, 'justRight'),
       session(100, 6, 'grind'),
@@ -135,19 +137,39 @@ describe('prescribeNextSession', () => {
     const history = Array.from({ length: GRIND_REPEAT_TRIGGER_COUNT }, () =>
       session(0, 8, 'grind'),
     );
-    const plan = prescribeNextSession('compound', history);
+    const plan = prescribeNextSession(COMPOUND, history);
     expect(plan.loadKg).toBe(0);
     expect(plan.targetReps).toBe(COMPOUND.repRangeLow);
   });
 
   it('isolation class uses its own window and increment', () => {
     const ISOLATION = PROGRESSION_BY_CLASS.isolation;
-    const plan = prescribeNextSession('isolation', [
+    const plan = prescribeNextSession(ISOLATION, [
       session(20, ISOLATION.repRangeHigh, 'justRight'),
     ]);
     expect(plan).toMatchObject({
       loadKg: 20 + ISOLATION.incrementKg,
       targetReps: ISOLATION.repRangeLow,
     });
+  });
+});
+
+describe('progressionWindowForExercise', () => {
+  const base: Exercise = {
+    id: 'test-lift',
+    name: 'Test Lift',
+    exerciseClass: 'compound',
+    equipment: ['barbell'],
+    primaryMuscles: ['back'],
+    secondaryMuscles: [],
+  };
+
+  it('falls back to the class window without an override', () => {
+    expect(progressionWindowForExercise(base)).toEqual(COMPOUND);
+  });
+
+  it('overlays only the overridden fields (per-exercise growth rate)', () => {
+    const stubborn: Exercise = { ...base, progressionOverride: { incrementKg: 1 } };
+    expect(progressionWindowForExercise(stubborn)).toEqual({ ...COMPOUND, incrementKg: 1 });
   });
 });
