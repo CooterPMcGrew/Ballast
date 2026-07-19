@@ -50,8 +50,10 @@ jobs:
 
       # Rolling "latest" prerelease so the phone always has one stable URL:
       # https://github.com/CooterPMcGrew/Ballast/releases/tag/latest
+      # Runs for manual dispatch AND v* tag pushes — artifact-only downloads
+      # require a GitHub login on the phone; the release URL does not.
       - uses: softprops/action-gh-release@v2
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
         with:
           tag_name: latest
           name: Ballast (latest build)
