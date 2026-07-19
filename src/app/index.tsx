@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { MuscleMap } from '@/components/MuscleMap';
 import { DEFAULT_GYM_PROFILES } from '@/data/defaultGymProfiles';
 import { EXERCISE_CATALOG } from '@/data/exerciseCatalog';
 import { filterAvailableExercises } from '@/domain/equipment';
@@ -55,6 +56,7 @@ export default function HomeScreen() {
               onPress={() => router.push({ pathname: '/session', params: { muscleGroup: group } })}
               style={styles.muscleButton}
             >
+              <MuscleMap group={group} />
               <Text style={styles.muscleButtonLabel}>{group.toUpperCase()}</Text>
             </Pressable>
           ))}
@@ -149,12 +151,15 @@ const styles = StyleSheet.create({
     flexBasis: '47%',
     flexGrow: 1,
     minHeight: touchTarget.primaryMinPt,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: spacing.sm,
     borderWidth: 1,
     borderColor: palette.schematicCyan,
     borderRadius: 4,
     backgroundColor: palette.surface,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
   muscleButtonLabel: {
     color: palette.schematicCyan,

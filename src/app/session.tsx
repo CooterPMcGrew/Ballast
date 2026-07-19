@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EXERCISE_CATALOG, getExerciseById } from '@/data/exerciseCatalog';
+import { filterAvailableExercises } from '@/domain/equipment';
 import {
   COMPONENT_LABELS,
   MUSCLE_COMPONENTS_BY_GROUP,
@@ -59,14 +60,28 @@ export default function SessionScreen() {
     completedExercises,
   });
 
+  // The rest of the gym stays one scroll away — the focus ranks the list,
+  // it never locks the user in ("mix if you want").
+  const rankedIds = new Set(ranked.map((entry) => entry.exercise.id));
+  const completedIds = new Set(completedExercises.map((exercise) => exercise.id));
+  const offTarget = filterAvailableExercises(EXERCISE_CATALOG, profile).filter(
+    (exercise) => !rankedIds.has(exercise.id) && !completedIds.has(exercise.id),
+  );
+
   const onEndSession = () => {
     endSession();
-    router.back();
+    // replace, not push: the ended session must not sit on the back stack.
+    router.replace('/summary');
   };
 
   return (
     <SafeAreaView style={styles.screen}>
       <ScrollView contentContainerStyle={styles.scroll}>
+        {/* Focus switch, not session exit — completed work and clock survive. */}
+        <Pressable testID="back-to-groups" onPress={() => router.back()} style={styles.backButton}>
+          <Text style={styles.backButtonLabel}>‹ MUSCLE GROUPS</Text>
+        </Pressable>
+
         <Text style={styles.kicker}>
           {targetGroup.toUpperCase()} — {profile.name.toUpperCase()}
         </Text>
@@ -109,6 +124,25 @@ export default function SessionScreen() {
           </Pressable>
         ))}
 
+        {offTarget.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>EVERYTHING ELSE</Text>
+            {offTarget.map((exercise) => (
+              <Pressable
+                key={exercise.id}
+                testID={`mix-${exercise.id}`}
+                onPress={() =>
+                  router.push({ pathname: '/workout', params: { exerciseId: exercise.id } })
+                }
+                style={styles.row}
+              >
+                <Text style={styles.rowName}>{exercise.name}</Text>
+                <Text style={styles.rowMuscles}>{exercise.primaryMuscles.join(' · ')}</Text>
+              </Pressable>
+            ))}
+          </>
+        )}
+
         {completedExercises.length > 0 && (
           <>
             <Text style={styles.sectionTitle}>DONE TODAY</Text>
@@ -138,12 +172,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.xl,
   },
+  backButton: {
+    minHeight: touchTarget.secondaryMinPt,
+    justifyContent: 'center',
+    alignSelf: 'flex-start',
+    marginTop: spacing.md,
+    paddingRight: spacing.md,
+  },
+  backButtonLabel: {
+    color: palette.slate,
+    fontFamily: fontFamily.display,
+    fontSize: fontSize.label,
+    letterSpacing: 1,
+  },
   kicker: {
     color: palette.slate,
     fontFamily: fontFamily.display,
     fontSize: fontSize.label,
     letterSpacing: 2,
-    marginTop: spacing.xl,
+    marginTop: spacing.sm,
     marginBottom: spacing.md,
   },
   coverageRow: {
@@ -203,6 +250,12 @@ const styles = StyleSheet.create({
   },
   rowRationale: {
     color: palette.copper,
+    fontFamily: fontFamily.mono,
+    fontSize: fontSize.caption,
+    marginTop: 2,
+  },
+  rowMuscles: {
+    color: palette.slate,
     fontFamily: fontFamily.mono,
     fontSize: fontSize.caption,
     marginTop: 2,

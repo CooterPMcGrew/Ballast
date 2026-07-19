@@ -18,6 +18,7 @@ import {
   worstFeedback,
   type ExerciseSessionResult,
 } from '@/engine/progression';
+import { estimateSessionEnergy, type EnergyEstimate } from '@/engine/energy';
 import { seedLoadKgForExercise } from '@/engine/seeding';
 import { persistence } from '@/persistence';
 import type { GymProfile, MuscleGroup, SetFeedback } from '@/domain/types';
@@ -34,16 +35,28 @@ export interface ActiveExercise {
 }
 
 /**
- * A running workout session: the declared intent (target group) plus what's
+ * A running workout session: the current focus (target group) plus what's
  * been completed, which the recommender re-ranks against after every
- * exercise. In-memory only — the completed sets themselves persist per
- * exercise, but session-scoped coverage resets on app restart (workaround:
- * acceptable for one workout; a persisted session row is the root fix and
- * arrives with workout history views).
+ * exercise. Switching focus mid-session keeps the completed work — it's one
+ * physical workout, the group is just where attention points. In-memory
+ * only — the completed sets themselves persist per exercise, but
+ * session-scoped coverage resets on app restart (workaround: acceptable for
+ * one workout; a persisted session row is the root fix and arrives with
+ * workout history views).
  */
 export interface ActiveSession {
   muscleGroup: MuscleGroup;
   completedExerciseIds: string[];
+  startedAtIso: string;
+  setsCompleted: number;
+}
+
+/** Snapshot built by endSession() for the summary screen. In-memory only. */
+export interface SessionSummary {
+  exerciseNames: string[];
+  setsCompleted: number;
+  durationMs: number;
+  energy: EnergyEstimate;
 }
 
 interface AppState {
@@ -55,12 +68,18 @@ interface AppState {
   sessionHistoryByExercise: Record<string, ExerciseSessionResult[]>;
   activeExercise: ActiveExercise | null;
   activeSession: ActiveSession | null;
+  /** Set by endSession(); the summary screen reads it. Replaced each session. */
+  lastSessionSummary: SessionSummary | null;
 
   /** Load persisted state; call once from the root layout. */
   hydrate: () => Promise<void>;
   selectGymProfile: (profileId: string) => void;
-  /** Declare today's intent; the session page ranks the catalog against it. */
+  /**
+   * Declare or switch today's focus. An already-running session keeps its
+   * completed work and clock — only the recommender's target changes.
+   */
   startSession: (muscleGroup: MuscleGroup) => void;
+  /** Close the session and leave a summary in lastSessionSummary. */
   endSession: () => void;
   /** Prescribe from history, or seed on first encounter (PRD D2). */
   startExercise: (exerciseId: string) => void;
@@ -81,6 +100,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   sessionHistoryByExercise: {},
   activeExercise: null,
   activeSession: null,
+  lastSessionSummary: null,
 
   hydrate: async () => {
     try {
@@ -106,9 +126,37 @@ export const useAppStore = create<AppState>((set, get) => ({
       .catch((error) => console.error('persistence: profile save failed', error));
   },
 
-  startSession: (muscleGroup) => set({ activeSession: { muscleGroup, completedExerciseIds: [] } }),
+  startSession: (muscleGroup) =>
+    set((state) => ({
+      activeSession: state.activeSession
+        ? { ...state.activeSession, muscleGroup }
+        : {
+            muscleGroup,
+            completedExerciseIds: [],
+            startedAtIso: new Date().toISOString(),
+            setsCompleted: 0,
+          },
+    })),
 
-  endSession: () => set({ activeSession: null }),
+  endSession: () => {
+    const session = get().activeSession;
+    if (!session) {
+      console.error('endSession: no active session');
+      return;
+    }
+    const durationMs = Math.max(0, Date.now() - Date.parse(session.startedAtIso));
+    set({
+      activeSession: null,
+      lastSessionSummary: {
+        exerciseNames: session.completedExerciseIds
+          .map((id) => getExerciseById(id)?.name)
+          .filter((name): name is string => name !== undefined),
+        setsCompleted: session.setsCompleted,
+        durationMs,
+        energy: estimateSessionEnergy(durationMs),
+      },
+    });
+  },
 
   startExercise: (exerciseId) => {
     const exercise = getExerciseById(exerciseId);
@@ -158,7 +206,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     const setFeedbacks = [...active.setFeedbacks, feedback];
 
     if (setFeedbacks.length < active.totalSets) {
-      set({ activeExercise: { ...active, setFeedbacks } });
+      set((state) => ({
+        activeExercise: { ...active, setFeedbacks },
+        activeSession: bumpSetCount(state.activeSession),
+      }));
       return;
     }
 
@@ -179,16 +230,16 @@ export const useAppStore = create<AppState>((set, get) => ({
         ],
       },
       // Feed session coverage so the recommender re-ranks around what's done.
-      activeSession: state.activeSession
-        ? {
-            ...state.activeSession,
-            completedExerciseIds: state.activeSession.completedExerciseIds.includes(
-              active.exerciseId,
-            )
-              ? state.activeSession.completedExerciseIds
-              : [...state.activeSession.completedExerciseIds, active.exerciseId],
-          }
-        : null,
+      activeSession: bumpSetCount(
+        state.activeSession && {
+          ...state.activeSession,
+          completedExerciseIds: state.activeSession.completedExerciseIds.includes(
+            active.exerciseId,
+          )
+            ? state.activeSession.completedExerciseIds
+            : [...state.activeSession.completedExerciseIds, active.exerciseId],
+        },
+      ),
     }));
     persistence
       .appendSession({
@@ -221,4 +272,9 @@ export function loadStepKgForExercise(exerciseId: string): number {
 /** Kill 0.1+0.2 artifacts before they reach the display or history. */
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+/** Every Post-Set tap is one completed set, whatever exercise it belongs to. */
+function bumpSetCount(session: ActiveSession | null): ActiveSession | null {
+  return session ? { ...session, setsCompleted: session.setsCompleted + 1 } : null;
 }

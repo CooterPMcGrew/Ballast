@@ -100,6 +100,26 @@ export const RECOMMENDATION_CLASS_WEIGHT: Record<ExerciseClass, number> = {
   isolation: 1,
 };
 
+// ── Session energy estimate tunables ──────────────────────────────────
+
+/**
+ * MET for resistance training. Compendium of Physical Activities puts it at
+ * 3.5 (light) to 6.0 (vigorous); 5.0 assumes purposeful working sets with
+ * real rest. Deliberately a single coarse value — per-exercise METs would be
+ * false precision (CLAUDE.md §6.2) given we don't yet track rest vs work time.
+ */
+export const MET_RESISTANCE_TRAINING = 5.0;
+
+/**
+ * Placeholder body mass for the energy estimate until user profiles carry
+ * real metrics (planned login/profile feature). The summary screen labels
+ * the estimate's inputs so this assumption is never hidden.
+ */
+export const DEFAULT_BODY_MASS_KG = 80;
+
+/** Exact by definition: 1 kcal = 4.184 kJ. */
+export const KJ_PER_KCAL = 4.184;
+
 /** Default rest prescription per class; user-adjustable per exercise later. */
 export const REST_DEFAULT_SEC_BY_CLASS: Record<ExerciseClass, number> = {
   compound: 180,
