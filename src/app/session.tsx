@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BodyHeatMap } from '@/components/BodyHeatMap';
 import { EXERCISE_CATALOG, getExerciseById } from '@/data/exerciseCatalog';
 import { filterAvailableExercises } from '@/domain/equipment';
 import {
@@ -12,7 +13,11 @@ import {
   type Exercise,
   type MuscleGroup,
 } from '@/domain/types';
-import { accumulateCoverage, rankExercisesForSession } from '@/engine/recommendation';
+import {
+  accumulateCoverage,
+  groupCoverage,
+  rankExercisesForSession,
+} from '@/engine/recommendation';
 import { getProfileById, useAppStore } from '@/store/appStore';
 import { fontFamily, fontSize, palette, spacing, touchTarget } from '@/theme/tokens';
 
@@ -54,6 +59,7 @@ export default function SessionScreen() {
     .map((id) => getExerciseById(id))
     .filter((exercise): exercise is Exercise => exercise !== undefined);
   const coverage = accumulateCoverage(completedExercises);
+  const groupPercents = groupCoverage(coverage);
   const ranked = rankExercisesForSession({
     catalog: EXERCISE_CATALOG,
     profile,
@@ -101,6 +107,20 @@ export default function SessionScreen() {
                   {Math.round(covered * 100)}%
                 </Text>
               </View>
+            );
+          })}
+        </View>
+
+        {/* Whole-body view: what today's work has reached, muscle by muscle. */}
+        <Text style={styles.sectionTitle}>FULL BODY TODAY</Text>
+        <BodyHeatMap intensityByGroup={groupPercents} scale={1.5} />
+        <View style={styles.groupPctRow}>
+          {MUSCLE_GROUPS.map((group) => {
+            const pct = Math.round(Math.min(1, groupPercents[group]) * 100);
+            return (
+              <Text key={group} style={[styles.groupPct, pct > 0 && styles.groupPctLit]}>
+                {group.toUpperCase()} {pct}%
+              </Text>
             );
           })}
         </View>
@@ -235,6 +255,20 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     marginTop: spacing.md,
     marginBottom: spacing.sm,
+  },
+  groupPctRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  groupPct: {
+    color: palette.slate,
+    fontFamily: fontFamily.mono,
+    fontSize: fontSize.caption,
+  },
+  groupPctLit: {
+    color: palette.schematicCyan,
   },
   // Recommendation rows are the session's primary action: 64pt floor.
   row: {

@@ -11,18 +11,19 @@ import { palette } from '@/theme/tokens';
  * the grid reads as a body map, not decoration.
  */
 
-interface PartRect {
+export interface PartRect {
   x: number;
   y: number;
   w: number;
   h: number;
 }
 
-/** Figure canvas in px; parts are laid out absolutely inside it. */
-const GLYPH_WIDTH_PX = 28;
-const GLYPH_HEIGHT_PX = 44;
+/** Figure canvas in px; parts are laid out absolutely inside it.
+ *  Exported with the part/highlight tables so BodyHeatMap shares one body. */
+export const GLYPH_WIDTH_PX = 28;
+export const GLYPH_HEIGHT_PX = 44;
 
-const PART_RECTS = {
+export const PART_RECTS = {
   head: { x: 10, y: 0, w: 8, h: 6 },
   shoulderL: { x: 2, y: 7, w: 5, h: 4 },
   shoulderR: { x: 21, y: 7, w: 5, h: 4 },
@@ -39,9 +40,9 @@ const PART_RECTS = {
   legLowerR: { x: 15, y: 38, w: 5, h: 6 },
 } satisfies Record<string, PartRect>;
 
-type PartKey = keyof typeof PART_RECTS;
+export type PartKey = keyof typeof PART_RECTS;
 
-interface Highlight {
+export interface Highlight {
   parts: PartKey[];
   /** Which side of the body the group lives on — decides highlight color. */
   side: 'anterior' | 'posterior';
@@ -52,7 +53,7 @@ interface Highlight {
  * the same silhouette region in copper. Cheaper and clearer than two
  * figures at 28 px.
  */
-const HIGHLIGHT_BY_GROUP: Record<MuscleGroup, Highlight> = {
+export const HIGHLIGHT_BY_GROUP: Record<MuscleGroup, Highlight> = {
   chest: { parts: ['torsoUpper'], side: 'anterior' },
   back: { parts: ['torsoUpper'], side: 'posterior' },
   shoulders: { parts: ['shoulderL', 'shoulderR'], side: 'anterior' },

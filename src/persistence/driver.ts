@@ -5,7 +5,6 @@
 
 import * as SQLite from 'expo-sqlite';
 
-import type { ExerciseSessionResult } from '@/engine/progression';
 import {
   EQUIPMENT_TAGS,
   UNIT_PREFERENCES,
@@ -14,7 +13,12 @@ import {
   type SetFeedback,
   type UnitPreference,
 } from '@/domain/types';
-import type { PersistedSessionRow, PersistedState, PersistenceDriver } from '@/persistence/types';
+import type {
+  PersistedSessionRow,
+  PersistedState,
+  PersistenceDriver,
+  TimestampedSessionResult,
+} from '@/persistence/types';
 
 const DB_NAME = 'ballast.db';
 
@@ -101,13 +105,14 @@ export function createDriver(): PersistenceDriver {
          FROM exercise_sessions ORDER BY id ASC`,
       );
 
-      const sessionHistoryByExercise: Record<string, ExerciseSessionResult[]> = {};
+      const sessionHistoryByExercise: Record<string, TimestampedSessionResult[]> = {};
       for (const row of rows) {
-        const result: ExerciseSessionResult = {
+        const result: TimestampedSessionResult = {
           loadKg: row.load_kg,
           repsAchieved: row.reps_achieved,
           // CHECK constraint guarantees membership; cast is safe.
           feedback: row.feedback as SetFeedback,
+          completedAtIso: row.completed_at_iso,
         };
         (sessionHistoryByExercise[row.exercise_id] ??= []).push(result);
       }

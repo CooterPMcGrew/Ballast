@@ -2,10 +2,12 @@ import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BodyHeatMap } from '@/components/BodyHeatMap';
 import { MuscleMap } from '@/components/MuscleMap';
 import { DEFAULT_GYM_PROFILES } from '@/data/defaultGymProfiles';
-import { EXERCISE_CATALOG } from '@/data/exerciseCatalog';
+import { EXERCISE_CATALOG, getExerciseById } from '@/data/exerciseCatalog';
 import { filterAvailableExercises } from '@/domain/equipment';
+import { muscleRecency, type TimestampedLift } from '@/engine/recency';
 import { CUSTOM_GYM_PROFILE_ID, MUSCLE_GROUPS, type Exercise } from '@/domain/types';
 import { getProfileById, useAppStore } from '@/store/appStore';
 import { fontFamily, fontSize, palette, spacing, touchTarget } from '@/theme/tokens';
@@ -20,6 +22,17 @@ export default function HomeScreen() {
   const selectedProfileId = useAppStore((state) => state.selectedGymProfileId);
   const selectGymProfile = useAppStore((state) => state.selectGymProfile);
   const customGym = useAppStore((state) => state.customGym);
+  const historyByExercise = useAppStore((state) => state.sessionHistoryByExercise);
+
+  // Recency figure input: every timestamped lift whose exercise still exists
+  // (renamed/deleted catalog ids drop out rather than crashing Home).
+  const lifts: TimestampedLift[] = Object.entries(historyByExercise).flatMap(([id, rows]) => {
+    const exercise = getExerciseById(id);
+    return exercise
+      ? rows.map((row) => ({ exercise, completedAtIso: row.completedAtIso }))
+      : [];
+  });
+  const recency = muscleRecency(lifts, Date.now());
 
   const profile = getProfileById(selectedProfileId, customGym);
   // The user-built profile joins the chips only while enabled in Settings.
@@ -60,6 +73,10 @@ export default function HomeScreen() {
             );
           })}
         </View>
+
+        {/* Recency status: glow = trained recently, gray = due (7-day fade). */}
+        <Text style={styles.kicker}>MUSCLE STATUS — 7 DAYS</Text>
+        <BodyHeatMap intensityByGroup={recency} scale={2} />
 
         <Text style={styles.kicker}>TRAIN TODAY</Text>
         <View style={styles.muscleGrid}>

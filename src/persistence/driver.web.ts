@@ -5,8 +5,12 @@
 // support. Until then this stays a flat JSON blob in localStorage.
 
 import type { CustomGymState, UnitPreference } from '@/domain/types';
-import type { ExerciseSessionResult } from '@/engine/progression';
-import type { PersistedSessionRow, PersistedState, PersistenceDriver } from '@/persistence/types';
+import type {
+  PersistedSessionRow,
+  PersistedState,
+  PersistenceDriver,
+  TimestampedSessionResult,
+} from '@/persistence/types';
 
 const STORAGE_KEY = 'ballast-state-v1';
 
@@ -43,10 +47,15 @@ export function createDriver(): PersistenceDriver {
 
     async loadState(): Promise<PersistedState> {
       const blob = readBlob();
-      const sessionHistoryByExercise: Record<string, ExerciseSessionResult[]> = {};
+      const sessionHistoryByExercise: Record<string, TimestampedSessionResult[]> = {};
       for (const row of blob.sessions) {
-        const { exerciseId, loadKg, repsAchieved, feedback } = row;
-        (sessionHistoryByExercise[exerciseId] ??= []).push({ loadKg, repsAchieved, feedback });
+        const { exerciseId, loadKg, repsAchieved, feedback, completedAtIso } = row;
+        (sessionHistoryByExercise[exerciseId] ??= []).push({
+          loadKg,
+          repsAchieved,
+          feedback,
+          completedAtIso,
+        });
       }
       return {
         selectedGymProfileId: blob.selectedGymProfileId,

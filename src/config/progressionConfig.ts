@@ -139,6 +139,16 @@ export const REST_DEFAULT_SEC_BY_CLASS: Record<ExerciseClass, number> = {
 /** Working sets per exercise until per-program set schemes exist. */
 export const SETS_PER_EXERCISE_DEFAULT = 3;
 
+/** Ceiling for the mid-workout SETS stepper — past this it's junk volume. */
+export const SETS_PER_EXERCISE_MAX = 10;
+
+/**
+ * Home-screen recency figure: a trained muscle's glow fades linearly to
+ * nothing over this many days. Roughly one training week — after that the
+ * muscle is "due" and shows gray.
+ */
+export const MUSCLE_RECENCY_FADE_DAYS = 7;
+
 /**
  * First-session seed loads by equipment (PRD D2): rough starting estimates,
  * NOT a conversion table presented as truth. The user corrects via steppers

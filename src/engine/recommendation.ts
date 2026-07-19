@@ -18,6 +18,7 @@ import { isExerciseAvailable } from '@/domain/equipment';
 import {
   COMPONENT_LABELS,
   MUSCLE_COMPONENTS_BY_GROUP,
+  MUSCLE_GROUPS,
   type Exercise,
   type GymProfile,
   type MuscleComponent,
@@ -68,6 +69,25 @@ export function contributionsForExercise(exercise: Exercise): ComponentCoverage 
     }
   }
   return contributions;
+}
+
+/**
+ * Collapse component coverage to one 0–1 intensity per muscle group: the
+ * mean of its components, each capped at 1. This is what the body heat-map
+ * and percentage readouts render — 100% means every component fully worked,
+ * so a press alone can never light the whole shoulder.
+ */
+export function groupCoverage(coverage: ComponentCoverage): Record<MuscleGroup, number> {
+  const result = {} as Record<MuscleGroup, number>;
+  for (const group of MUSCLE_GROUPS) {
+    const components = MUSCLE_COMPONENTS_BY_GROUP[group];
+    const sum = components.reduce(
+      (total, component) => total + Math.min(1, coverage[component] ?? 0),
+      0,
+    );
+    result[group] = sum / components.length;
+  }
+  return result;
 }
 
 /** Sum contributions of everything completed this session. */

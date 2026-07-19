@@ -32,7 +32,9 @@ export default function WorkoutScreen() {
   const startExercise = useAppStore((state) => state.startExercise);
   const adjustLoad = useAppStore((state) => state.adjustLoad);
   const adjustReps = useAppStore((state) => state.adjustReps);
+  const adjustSets = useAppStore((state) => state.adjustSets);
   const completeSet = useAppStore((state) => state.completeSet);
+  const abandonExercise = useAppStore((state) => state.abandonExercise);
 
   const [awaitingFeedback, setAwaitingFeedback] = useState(false);
   const matrixArmedAtMs = useRef(0);
@@ -76,8 +78,18 @@ export default function WorkoutScreen() {
     }
   };
 
+  const onCancel = () => {
+    // Nothing recorded for this exercise: completed sets of PREVIOUS
+    // exercises are safe; only the in-flight prescription is discarded.
+    abandonExercise();
+    router.back();
+  };
+
   return (
     <SafeAreaView style={styles.screen}>
+      <Pressable testID="cancel-exercise" onPress={onCancel} style={styles.cancelButton}>
+        <Text style={styles.cancelLabel}>‹ CANCEL EXERCISE</Text>
+      </Pressable>
       <View style={styles.header}>
         <Text style={styles.exerciseName}>{exercise.name.toUpperCase()}</Text>
         <Text style={styles.setCounter}>
@@ -124,6 +136,7 @@ export default function WorkoutScreen() {
               onPlus={() => adjustLoad(stepKg)}
             />
             <StepperRow label="REPS" onMinus={() => adjustReps(-1)} onPlus={() => adjustReps(1)} />
+            <StepperRow label="SETS" onMinus={() => adjustSets(-1)} onPlus={() => adjustSets(1)} />
             <View style={styles.buttonStack}>
               <BigButton
                 label="COMPLETE AS SUGGESTED"
@@ -186,11 +199,24 @@ const styles = StyleSheet.create({
     backgroundColor: palette.gunmetal,
     paddingHorizontal: spacing.md,
   },
+  cancelButton: {
+    minHeight: touchTarget.secondaryMinPt,
+    justifyContent: 'center',
+    alignSelf: 'flex-start',
+    marginTop: spacing.md,
+    paddingRight: spacing.md,
+  },
+  cancelLabel: {
+    color: palette.slate,
+    fontFamily: fontFamily.display,
+    fontSize: fontSize.label,
+    letterSpacing: 1,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'baseline',
-    marginTop: spacing.lg,
+    marginTop: spacing.xs,
   },
   exerciseName: {
     color: palette.textPrimary,

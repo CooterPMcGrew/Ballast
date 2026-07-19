@@ -9,18 +9,15 @@ import {
   PROGRESSION_BY_CLASS,
   progressionWindowForExercise,
   SETS_PER_EXERCISE_DEFAULT,
+  SETS_PER_EXERCISE_MAX,
 } from '@/config/progressionConfig';
 import { DEFAULT_GYM_PROFILES } from '@/data/defaultGymProfiles';
 import { getExerciseById } from '@/data/exerciseCatalog';
-import {
-  prescribeNextSession,
-  seedPlan,
-  worstFeedback,
-  type ExerciseSessionResult,
-} from '@/engine/progression';
+import { prescribeNextSession, seedPlan, worstFeedback } from '@/engine/progression';
 import { estimateSessionEnergy, type EnergyEstimate } from '@/engine/energy';
 import { seedLoadKgForExercise } from '@/engine/seeding';
 import { persistence } from '@/persistence';
+import type { TimestampedSessionResult } from '@/persistence/types';
 import {
   CUSTOM_GYM_PROFILE_ID,
   type CustomGymState,
@@ -71,8 +68,9 @@ interface AppState {
   hydrated: boolean;
   /** Manual selection is primary (PRD D6); last-used restored on launch. */
   selectedGymProfileId: string;
-  /** Per-exercise session history, most recent last — the engine's only input. */
-  sessionHistoryByExercise: Record<string, ExerciseSessionResult[]>;
+  /** Per-exercise history, most recent last, every lift timestamped. The
+   *  engine reads the result fields; the recency figure reads the clock. */
+  sessionHistoryByExercise: Record<string, TimestampedSessionResult[]>;
   activeExercise: ActiveExercise | null;
   activeSession: ActiveSession | null;
   /** Set by endSession(); the summary screen reads it. Replaced each session. */
@@ -103,6 +101,8 @@ interface AppState {
   /** Stepper adjustments — the only mid-workout numeric input (zero-precision). */
   adjustLoad: (deltaKg: number) => void;
   adjustReps: (delta: number) => void;
+  /** Change remaining sets mid-exercise; floor = the set being done now. */
+  adjustSets: (delta: number) => void;
   /**
    * One Post-Set Matrix tap. On the final set, collapses the session
    * (worst set governs) into history and clears the active exercise.
@@ -240,6 +240,18 @@ export const useAppStore = create<AppState>((set, get) => ({
       return { activeExercise: { ...state.activeExercise, targetReps } };
     }),
 
+  adjustSets: (delta) =>
+    set((state) => {
+      if (!state.activeExercise) return state;
+      // Can't retire sets already done; the current set must still complete.
+      const floor = state.activeExercise.setFeedbacks.length + 1;
+      const totalSets = Math.min(
+        SETS_PER_EXERCISE_MAX,
+        Math.max(floor, state.activeExercise.totalSets + delta),
+      );
+      return { activeExercise: { ...state.activeExercise, totalSets } };
+    }),
+
   completeSet: (feedback) => {
     const active = get().activeExercise;
     if (!active) {
@@ -258,10 +270,11 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     // Final set: fold the session into history — this is the engine's input
     // for next time, closing the auto-regulation loop.
-    const result: ExerciseSessionResult = {
+    const result: TimestampedSessionResult = {
       loadKg: active.loadKg,
       repsAchieved: active.targetReps,
       feedback: worstFeedback(setFeedbacks),
+      completedAtIso: new Date().toISOString(),
     };
     set((state) => ({
       activeExercise: null,
@@ -285,11 +298,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       ),
     }));
     persistence
-      .appendSession({
-        exerciseId: active.exerciseId,
-        ...result,
-        completedAtIso: new Date().toISOString(),
-      })
+      .appendSession({ exerciseId: active.exerciseId, ...result })
       .catch((error) => console.error('persistence: session save failed', error));
   },
 

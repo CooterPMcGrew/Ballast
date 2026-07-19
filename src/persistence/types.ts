@@ -4,9 +4,17 @@
 import type { CustomGymState, UnitPreference } from '@/domain/types';
 import type { ExerciseSessionResult } from '@/engine/progression';
 
-export interface PersistedSessionRow extends ExerciseSessionResult {
-  exerciseId: string;
+/**
+ * A session result with its wall-clock moment. The engine only reads the
+ * ExerciseSessionResult part; the timestamp feeds the recency figure and
+ * history views.
+ */
+export interface TimestampedSessionResult extends ExerciseSessionResult {
   completedAtIso: string;
+}
+
+export interface PersistedSessionRow extends TimestampedSessionResult {
+  exerciseId: string;
 }
 
 export interface PersistedState {
@@ -15,7 +23,7 @@ export interface PersistedState {
   unitPreference: UnitPreference | null;
   customGym: CustomGymState | null;
   /** Per exercise, oldest → newest — the order the engine expects. */
-  sessionHistoryByExercise: Record<string, ExerciseSessionResult[]>;
+  sessionHistoryByExercise: Record<string, TimestampedSessionResult[]>;
 }
 
 export interface PersistenceDriver {
