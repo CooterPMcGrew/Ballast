@@ -16,13 +16,29 @@ import {
   type Exercise,
   type MuscleGroup,
 } from '@/domain/types';
+import { formatLoad, unitSuffix } from '@/domain/units';
 import {
   accumulateCoverage,
   groupCoverage,
   rankExercisesForSession,
 } from '@/engine/recommendation';
+import type { TimestampedSessionResult } from '@/persistence/types';
 import { getProfileById, useAppStore } from '@/store/appStore';
 import { fontFamily, fontSize, palette, spacing, touchTarget } from '@/theme/tokens';
+
+const MS_PER_DAY = 86_400_000;
+
+/** "LAST 60 KG × 8 · 4D AGO" — the row-level memory of this movement. */
+function lastResultLine(
+  history: readonly TimestampedSessionResult[] | undefined,
+  unit: Parameters<typeof formatLoad>[1],
+): string | null {
+  const last = history?.[history.length - 1];
+  if (!last) return null;
+  const days = Math.floor((Date.now() - Date.parse(last.completedAtIso)) / MS_PER_DAY);
+  const when = days <= 0 ? 'TODAY' : `${days}D AGO`;
+  return `LAST ${formatLoad(last.loadKg, unit)} ${unitSuffix(unit)} × ${last.repsAchieved} · ${when}`;
+}
 
 /**
  * Session flow, two modes on one route:
@@ -38,6 +54,8 @@ export default function SessionScreen() {
   const selectedProfileId = useAppStore((state) => state.selectedGymProfileId);
   const selectGymProfile = useAppStore((state) => state.selectGymProfile);
   const customGym = useAppStore((state) => state.customGym);
+  const historyByExercise = useAppStore((state) => state.sessionHistoryByExercise);
+  const unitPreference = useAppStore((state) => state.unitPreference);
   const activeSession = useAppStore((state) => state.activeSession);
   const startSession = useAppStore((state) => state.startSession);
   const endSession = useAppStore((state) => state.endSession);
@@ -195,36 +213,44 @@ export default function SessionScreen() {
             Nothing available for this group at this gym — switch profiles on Home.
           </Text>
         )}
-        {ranked.map(({ exercise, rationale }) => (
-          <Pressable
-            key={exercise.id}
-            testID={`recommend-${exercise.id}`}
-            onPress={() =>
-              router.push({ pathname: '/workout', params: { exerciseId: exercise.id } })
-            }
-            style={styles.row}
-          >
-            <Text style={styles.rowName}>{exercise.name}</Text>
-            <Text style={styles.rowRationale}>{rationale}</Text>
-          </Pressable>
-        ))}
+        {ranked.map(({ exercise, rationale }) => {
+          const lastLine = lastResultLine(historyByExercise[exercise.id], unitPreference);
+          return (
+            <Pressable
+              key={exercise.id}
+              testID={`recommend-${exercise.id}`}
+              onPress={() =>
+                router.push({ pathname: '/workout', params: { exerciseId: exercise.id } })
+              }
+              style={styles.row}
+            >
+              <Text style={styles.rowName}>{exercise.name}</Text>
+              <Text style={styles.rowRationale}>{rationale}</Text>
+              {lastLine && <Text style={styles.rowLast}>{lastLine}</Text>}
+            </Pressable>
+          );
+        })}
 
         {offTarget.length > 0 && (
           <>
             <Text style={styles.sectionTitle}>EVERYTHING ELSE</Text>
-            {offTarget.map((exercise) => (
-              <Pressable
-                key={exercise.id}
-                testID={`mix-${exercise.id}`}
-                onPress={() =>
-                  router.push({ pathname: '/workout', params: { exerciseId: exercise.id } })
-                }
-                style={styles.row}
-              >
-                <Text style={styles.rowName}>{exercise.name}</Text>
-                <Text style={styles.rowMuscles}>{exercise.primaryMuscles.join(' · ')}</Text>
-              </Pressable>
-            ))}
+            {offTarget.map((exercise) => {
+              const lastLine = lastResultLine(historyByExercise[exercise.id], unitPreference);
+              return (
+                <Pressable
+                  key={exercise.id}
+                  testID={`mix-${exercise.id}`}
+                  onPress={() =>
+                    router.push({ pathname: '/workout', params: { exerciseId: exercise.id } })
+                  }
+                  style={styles.row}
+                >
+                  <Text style={styles.rowName}>{exercise.name}</Text>
+                  <Text style={styles.rowMuscles}>{exercise.primaryMuscles.join(' · ')}</Text>
+                  {lastLine && <Text style={styles.rowLast}>{lastLine}</Text>}
+                </Pressable>
+              );
+            })}
           </>
         )}
 
@@ -409,6 +435,12 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   rowMuscles: {
+    color: palette.slate,
+    fontFamily: fontFamily.mono,
+    fontSize: fontSize.caption,
+    marginTop: 2,
+  },
+  rowLast: {
     color: palette.slate,
     fontFamily: fontFamily.mono,
     fontSize: fontSize.caption,
