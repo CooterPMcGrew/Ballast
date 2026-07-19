@@ -163,6 +163,10 @@ export function createDriver(): PersistenceDriver {
         completedAtIso: row.completed_at_iso,
       }));
     },
+
+    async clearAllSessions() {
+      await requireDb().runAsync(`DELETE FROM exercise_sessions`);
+    },
   };
 }
 

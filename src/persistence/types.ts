@@ -36,4 +36,7 @@ export interface PersistenceDriver {
   appendSession(row: PersistedSessionRow): Promise<void>;
   /** Full-fidelity history (timestamps included) — the export path. */
   loadAllSessionRows(): Promise<PersistedSessionRow[]>;
+  /** Destructive: wipe all training history. Settings gates it behind a
+   *  two-tap confirm; nothing else may call it. */
+  clearAllSessions(): Promise<void>;
 }

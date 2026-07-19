@@ -149,6 +149,9 @@ export const SETS_PER_EXERCISE_MAX = 10;
  */
 export const MUSCLE_RECENCY_FADE_DAYS = 7;
 
+/** Days of daily volume shown in the Home history chart. */
+export const HOME_CHART_DAYS = 14;
+
 /**
  * First-session seed loads by equipment (PRD D2): rough starting estimates,
  * NOT a conversion table presented as truth. The user corrects via steppers

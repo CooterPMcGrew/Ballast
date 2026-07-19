@@ -92,5 +92,11 @@ export function createDriver(): PersistenceDriver {
     async loadAllSessionRows(): Promise<PersistedSessionRow[]> {
       return readBlob().sessions;
     },
+
+    async clearAllSessions() {
+      const blob = readBlob();
+      blob.sessions = [];
+      writeBlob(blob);
+    },
   };
 }

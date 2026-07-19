@@ -4,7 +4,10 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BodyHeatMap } from '@/components/BodyHeatMap';
+import { MuscleMap } from '@/components/MuscleMap';
+import { DEFAULT_GYM_PROFILES } from '@/data/defaultGymProfiles';
 import { EXERCISE_CATALOG, getExerciseById } from '@/data/exerciseCatalog';
+import { CUSTOM_GYM_PROFILE_ID } from '@/domain/types';
 import { filterAvailableExercises } from '@/domain/equipment';
 import {
   COMPONENT_LABELS,
@@ -22,15 +25,18 @@ import { getProfileById, useAppStore } from '@/store/appStore';
 import { fontFamily, fontSize, palette, spacing, touchTarget } from '@/theme/tokens';
 
 /**
- * Session page: the recommender's home. The user declared a target group on
- * Home; this screen ranks the gym's available movements by uncovered
- * components and RE-RANKS after every completed exercise. The coverage strip
- * and per-row rationale keep the algorithm's reasoning on screen at all
- * times (Exposed Mechanism) — never a black-box ordering.
+ * Session flow, two modes on one route:
+ *   /session                → picker: gym profile + muscle-group focus
+ *   /session?muscleGroup=x  → the recommender view for that focus
+ * The session itself (clock, completed work) survives focus changes and
+ * picker visits; only END SESSION closes it. The coverage strip and
+ * per-row rationale keep the algorithm's reasoning on screen at all times
+ * (Exposed Mechanism) — never a black-box ordering.
  */
 export default function SessionScreen() {
   const { muscleGroup } = useLocalSearchParams<{ muscleGroup: string }>();
   const selectedProfileId = useAppStore((state) => state.selectedGymProfileId);
+  const selectGymProfile = useAppStore((state) => state.selectGymProfile);
   const customGym = useAppStore((state) => state.customGym);
   const activeSession = useAppStore((state) => state.activeSession);
   const startSession = useAppStore((state) => state.startSession);
@@ -46,10 +52,70 @@ export default function SessionScreen() {
     }
   }, [targetGroup, activeSession, startSession]);
 
+  const onEndSessionShared = () => {
+    endSession();
+    // replace, not push: the ended session must not sit on the back stack.
+    router.replace('/summary');
+  };
+
   if (!targetGroup) {
+    const pickerProfile = getProfileById(selectedProfileId, customGym);
+    const profiles = customGym.enabled
+      ? [...DEFAULT_GYM_PROFILES, getProfileById(CUSTOM_GYM_PROFILE_ID, customGym)]
+      : [...DEFAULT_GYM_PROFILES];
     return (
       <SafeAreaView style={styles.screen}>
-        <Text style={styles.rationale}>Unknown muscle group — go back and pick again.</Text>
+        <ScrollView contentContainerStyle={styles.scroll}>
+          <Pressable
+            testID="back-to-home"
+            onPress={() => router.back()}
+            style={styles.backButton}
+          >
+            <Text style={styles.backButtonLabel}>‹ HOME</Text>
+          </Pressable>
+
+          <Text style={styles.kicker}>GYM PROFILE</Text>
+          <View style={styles.chipRow}>
+            {profiles.map((p) => {
+              const active = p.id === pickerProfile.id;
+              return (
+                <Pressable
+                  key={p.id}
+                  testID={`profile-${p.id}`}
+                  onPress={() => selectGymProfile(p.id)}
+                  style={[styles.chip, active && styles.chipActive]}
+                >
+                  <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>
+                    {p.name.toUpperCase()}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <Text style={styles.kicker}>
+            {activeSession ? 'SWITCH FOCUS' : 'WHAT ARE YOU TRAINING?'}
+          </Text>
+          <View style={styles.muscleGrid}>
+            {MUSCLE_GROUPS.map((group) => (
+              <Pressable
+                key={group}
+                testID={`train-${group}`}
+                onPress={() => router.replace({ pathname: '/session', params: { muscleGroup: group } })}
+                style={styles.muscleButton}
+              >
+                <MuscleMap group={group} />
+                <Text style={styles.muscleButtonLabel}>{group.toUpperCase()}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {activeSession && (
+            <Pressable testID="end-session" onPress={onEndSessionShared} style={styles.endButton}>
+              <Text style={styles.endButtonLabel}>END SESSION</Text>
+            </Pressable>
+          )}
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -75,17 +141,15 @@ export default function SessionScreen() {
     (exercise) => !rankedIds.has(exercise.id) && !completedIds.has(exercise.id),
   );
 
-  const onEndSession = () => {
-    endSession();
-    // replace, not push: the ended session must not sit on the back stack.
-    router.replace('/summary');
-  };
-
   return (
     <SafeAreaView style={styles.screen}>
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* Focus switch, not session exit — completed work and clock survive. */}
-        <Pressable testID="back-to-groups" onPress={() => router.back()} style={styles.backButton}>
+        <Pressable
+          testID="back-to-groups"
+          onPress={() => router.replace('/session')}
+          style={styles.backButton}
+        >
           <Text style={styles.backButtonLabel}>‹ MUSCLE GROUPS</Text>
         </Pressable>
 
@@ -176,7 +240,7 @@ export default function SessionScreen() {
           </>
         )}
 
-        <Pressable testID="end-session" onPress={onEndSession} style={styles.endButton}>
+        <Pressable testID="end-session" onPress={onEndSessionShared} style={styles.endButton}>
           <Text style={styles.endButtonLabel}>END SESSION</Text>
         </Pressable>
       </ScrollView>
@@ -213,6 +277,61 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     marginTop: spacing.sm,
     marginBottom: spacing.md,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  chip: {
+    flex: 1,
+    minHeight: touchTarget.secondaryMinPt,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: palette.slate,
+    borderRadius: 4,
+    backgroundColor: palette.surface,
+    paddingHorizontal: spacing.sm,
+  },
+  chipActive: {
+    borderColor: palette.schematicCyan,
+  },
+  chipLabel: {
+    color: palette.slate,
+    fontFamily: fontFamily.display,
+    fontSize: fontSize.caption,
+    letterSpacing: 1,
+    textAlign: 'center',
+  },
+  chipLabelActive: {
+    color: palette.schematicCyan,
+  },
+  muscleGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  // Focus pick is the screen's primary action: 64pt floor, two columns.
+  muscleButton: {
+    flexBasis: '47%',
+    flexGrow: 1,
+    minHeight: touchTarget.primaryMinPt,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: palette.schematicCyan,
+    borderRadius: 4,
+    backgroundColor: palette.surface,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  muscleButtonLabel: {
+    color: palette.schematicCyan,
+    fontFamily: fontFamily.display,
+    fontSize: fontSize.body,
+    letterSpacing: 1,
   },
   coverageRow: {
     flexDirection: 'row',

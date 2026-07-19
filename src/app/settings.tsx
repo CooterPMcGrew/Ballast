@@ -31,6 +31,25 @@ export default function SettingsScreen() {
   const selectedGymProfileId = useAppStore((state) => state.selectedGymProfileId);
 
   const [exportStatus, setExportStatus] = useState<string | null>(null);
+  const [confirmingClear, setConfirmingClear] = useState(false);
+  const seedDemoHistory = useAppStore((state) => state.seedDemoHistory);
+  const clearHistory = useAppStore((state) => state.clearHistory);
+
+  const onSeedDemo = async () => {
+    await seedDemoHistory();
+    setExportStatus('demo training block loaded — see Home');
+  };
+
+  // Two-tap confirm: destructive, and the user may be tired and imprecise.
+  const onClearHistory = async () => {
+    if (!confirmingClear) {
+      setConfirmingClear(true);
+      return;
+    }
+    setConfirmingClear(false);
+    await clearHistory();
+    setExportStatus('all history cleared');
+  };
 
   const toggleEquipment = (tag: EquipmentTag) => {
     const equipment = customGym.equipment.includes(tag)
@@ -126,7 +145,26 @@ export default function SettingsScreen() {
         )}
 
         <Text style={styles.kicker}>DATA</Text>
-        <Chip testID="export-data" label="EXPORT HISTORY (JSON)" active={false} onPress={onExport} />
+        <View style={styles.chipRow}>
+          <Chip
+            testID="export-data"
+            label="EXPORT HISTORY (JSON)"
+            active={false}
+            onPress={onExport}
+          />
+          <Chip
+            testID="seed-demo"
+            label="LOAD DEMO HISTORY"
+            active={false}
+            onPress={() => void onSeedDemo()}
+          />
+          <Chip
+            testID="clear-history"
+            label={confirmingClear ? 'TAP AGAIN TO ERASE ALL' : 'CLEAR HISTORY'}
+            active={confirmingClear}
+            onPress={() => void onClearHistory()}
+          />
+        </View>
         {exportStatus && <Text style={styles.note}>{exportStatus}</Text>}
 
         {/* Data plate — build provenance, stamped by CI (dev = local bundle). */}

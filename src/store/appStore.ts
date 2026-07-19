@@ -12,6 +12,7 @@ import {
   SETS_PER_EXERCISE_MAX,
 } from '@/config/progressionConfig';
 import { DEFAULT_GYM_PROFILES } from '@/data/defaultGymProfiles';
+import { buildDemoHistory } from '@/data/demoHistory';
 import { getExerciseById } from '@/data/exerciseCatalog';
 import { prescribeNextSession, seedPlan, worstFeedback } from '@/engine/progression';
 import { estimateSessionEnergy, type EnergyEstimate } from '@/engine/energy';
@@ -89,6 +90,10 @@ interface AppState {
    * while selected falls back to the first stock profile.
    */
   setCustomGym: (customGym: CustomGymState) => void;
+  /** Prototyping aid: write the demo training block into real history. */
+  seedDemoHistory: () => Promise<void>;
+  /** Destructive; Settings gates it behind a two-tap confirm. */
+  clearHistory: () => Promise<void>;
   /**
    * Declare or switch today's focus. An already-running session keeps its
    * completed work and clock — only the recommender's target changes.
@@ -166,6 +171,27 @@ export const useAppStore = create<AppState>((set, get) => ({
       selectGymProfile(CUSTOM_GYM_PROFILE_ID);
     } else if (!customGym.enabled && selectedGymProfileId === CUSTOM_GYM_PROFILE_ID) {
       selectGymProfile(DEFAULT_GYM_PROFILES[0]!.id);
+    }
+  },
+
+  seedDemoHistory: async () => {
+    try {
+      for (const row of buildDemoHistory(Date.now())) {
+        await persistence.appendSession(row);
+      }
+      const persisted = await persistence.loadState();
+      set({ sessionHistoryByExercise: persisted.sessionHistoryByExercise });
+    } catch (error) {
+      console.error('seedDemoHistory failed', error);
+    }
+  },
+
+  clearHistory: async () => {
+    try {
+      await persistence.clearAllSessions();
+      set({ sessionHistoryByExercise: {} });
+    } catch (error) {
+      console.error('clearHistory failed', error);
     }
   },
 
