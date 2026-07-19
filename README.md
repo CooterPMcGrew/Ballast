@@ -15,13 +15,20 @@ glancing between sets — zero-precision UI, no keyboard mid-workout.
 Expo (React Native) + TypeScript. See `CLAUDE.md` §4.
 
 ## Status
-Scaffolded — Expo SDK 57 + TypeScript (strict), expo-router, dark-only shell.
-Design tokens, progression config, and domain types in place. Engine, store,
-and screens not yet built.
+Working prototype — exercise catalog + gym profiles (editable JSON), active
+workout loop (prescription, steppers, Post-Set Matrix), on-device SQLite
+persistence. APK builds in CI.
 
 ## Run it
+
+Local dev (browser, hot reload):
 ```
 npm install
-npm start        # then scan the QR with Expo Go
+npm start        # open http://localhost:8081
 npm run typecheck
 ```
+
+On a phone: install the APK from the rolling release —
+<https://github.com/CooterPMcGrew/Ballast/releases/tag/latest>.
+New builds: push a `v*` tag, or Actions → android-apk → Run workflow.
+Expo Go is not used in this project.

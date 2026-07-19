@@ -72,10 +72,15 @@ palette swap, it is wrong.
 ## 4. Stack
 
 Default: **Expo (React Native) + TypeScript**, strict mode. Rationale: fastest
-solo build loop (Expo Go on-device testing), largest ecosystem, TypeScript type
-safety, and a clean native path to Bluetooth sensor integration later if v2
-wants it (Web Bluetooth is not available on iOS Safari, which would rule out a
-PWA for that future).
+solo build loop (browser dev server for iteration, CI-built APK on-device),
+largest ecosystem, TypeScript type safety, and a clean native path to Bluetooth
+sensor integration later if v2 wants it (Web Bluetooth is not available on iOS
+Safari, which would rule out a PWA for that future).
+
+**Expo Go is banned** — maintainer decision. Its one-SDK-at-a-time version
+coupling broke on-device testing. On-device means the installed APK from CI;
+if live reload on the phone is ever needed, build a dev client
+(`expo-dev-client`), never Expo Go.
 
 If the maintainer overrides to Flutter or a PWA, honor it — but flag the sensor
 tradeoff above once, then proceed.
