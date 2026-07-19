@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getExerciseById } from '@/data/exerciseCatalog';
 import type { SetFeedback } from '@/domain/types';
+import { formatLoad, unitSuffix } from '@/domain/units';
 import { loadStepKgForExercise, useAppStore } from '@/store/appStore';
 import { fontFamily, fontSize, palette, spacing, touchTarget } from '@/theme/tokens';
 
@@ -27,6 +28,7 @@ const MATRIX_ARM_DELAY_MS = 300;
 export default function WorkoutScreen() {
   const { exerciseId } = useLocalSearchParams<{ exerciseId: string }>();
   const active = useAppStore((state) => state.activeExercise);
+  const unitPreference = useAppStore((state) => state.unitPreference);
   const startExercise = useAppStore((state) => state.startExercise);
   const adjustLoad = useAppStore((state) => state.adjustLoad);
   const adjustReps = useAppStore((state) => state.adjustReps);
@@ -85,8 +87,8 @@ export default function WorkoutScreen() {
 
       <View style={styles.prescription}>
         <Text style={styles.loadValue}>
-          {active.loadKg}
-          <Text style={styles.loadUnit}> KG</Text>
+          {formatLoad(active.loadKg, unitPreference)}
+          <Text style={styles.loadUnit}> {unitSuffix(unitPreference)}</Text>
         </Text>
         <Text style={styles.repsValue}>× {active.targetReps}</Text>
         <Text style={styles.rationale}>{active.rationale}</Text>

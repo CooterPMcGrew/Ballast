@@ -140,6 +140,27 @@ export interface GymProfile {
   equipment: EquipmentTag[];
 }
 
+/** Reserved id for the user-built profile from Settings ("different gym"). */
+export const CUSTOM_GYM_PROFILE_ID = 'custom';
+
+/**
+ * The user's own gym described as an equipment checklist. `enabled` off =
+ * the stock profiles behave exactly as before ("always default to the
+ * normal setup").
+ */
+export interface CustomGymState {
+  enabled: boolean;
+  equipment: EquipmentTag[];
+}
+
+/**
+ * Display units. Loads are stored and progressed in kg everywhere; the
+ * preference converts at the display boundary only (lb-native plate math is
+ * a later, deliberate step — see domain/units.ts).
+ */
+export const UNIT_PREFERENCES = ['kg', 'lb'] as const;
+export type UnitPreference = (typeof UNIT_PREFERENCES)[number];
+
 /**
  * The sole per-set input to the progression engine (PRD §2, D5): three states,
  * one tap. Resolution deliberately traded for reliability.

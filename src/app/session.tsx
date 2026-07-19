@@ -26,6 +26,7 @@ import { fontFamily, fontSize, palette, spacing, touchTarget } from '@/theme/tok
 export default function SessionScreen() {
   const { muscleGroup } = useLocalSearchParams<{ muscleGroup: string }>();
   const selectedProfileId = useAppStore((state) => state.selectedGymProfileId);
+  const customGym = useAppStore((state) => state.customGym);
   const activeSession = useAppStore((state) => state.activeSession);
   const startSession = useAppStore((state) => state.startSession);
   const endSession = useAppStore((state) => state.endSession);
@@ -48,7 +49,7 @@ export default function SessionScreen() {
     );
   }
 
-  const profile = getProfileById(selectedProfileId);
+  const profile = getProfileById(selectedProfileId, customGym);
   const completedExercises = (activeSession?.completedExerciseIds ?? [])
     .map((id) => getExerciseById(id))
     .filter((exercise): exercise is Exercise => exercise !== undefined);

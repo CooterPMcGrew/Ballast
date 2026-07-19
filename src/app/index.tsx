@@ -6,7 +6,7 @@ import { MuscleMap } from '@/components/MuscleMap';
 import { DEFAULT_GYM_PROFILES } from '@/data/defaultGymProfiles';
 import { EXERCISE_CATALOG } from '@/data/exerciseCatalog';
 import { filterAvailableExercises } from '@/domain/equipment';
-import { MUSCLE_GROUPS, type Exercise } from '@/domain/types';
+import { CUSTOM_GYM_PROFILE_ID, MUSCLE_GROUPS, type Exercise } from '@/domain/types';
 import { getProfileById, useAppStore } from '@/store/appStore';
 import { fontFamily, fontSize, palette, spacing, touchTarget } from '@/theme/tokens';
 
@@ -19,8 +19,13 @@ import { fontFamily, fontSize, palette, spacing, touchTarget } from '@/theme/tok
 export default function HomeScreen() {
   const selectedProfileId = useAppStore((state) => state.selectedGymProfileId);
   const selectGymProfile = useAppStore((state) => state.selectGymProfile);
+  const customGym = useAppStore((state) => state.customGym);
 
-  const profile = getProfileById(selectedProfileId);
+  const profile = getProfileById(selectedProfileId, customGym);
+  // The user-built profile joins the chips only while enabled in Settings.
+  const profiles = customGym.enabled
+    ? [...DEFAULT_GYM_PROFILES, getProfileById(CUSTOM_GYM_PROFILE_ID, customGym)]
+    : [...DEFAULT_GYM_PROFILES];
   const available = filterAvailableExercises(EXERCISE_CATALOG, profile);
   const compounds = available.filter((e) => e.exerciseClass === 'compound');
   const isolations = available.filter((e) => e.exerciseClass === 'isolation');
@@ -28,9 +33,18 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.screen}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.kicker}>GYM PROFILE</Text>
+        <View style={styles.topRow}>
+          <Text style={styles.kicker}>GYM PROFILE</Text>
+          <Pressable
+            testID="open-settings"
+            onPress={() => router.push('/settings')}
+            style={styles.settingsButton}
+          >
+            <Text style={styles.settingsLabel}>SETTINGS ›</Text>
+          </Pressable>
+        </View>
         <View style={styles.chipRow}>
-          {DEFAULT_GYM_PROFILES.map((p) => {
+          {profiles.map((p) => {
             const active = p.id === profile.id;
             return (
               <Pressable
@@ -113,8 +127,25 @@ const styles = StyleSheet.create({
     marginTop: spacing.xl,
     marginBottom: spacing.md,
   },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+  },
+  settingsButton: {
+    minHeight: touchTarget.secondaryMinPt,
+    justifyContent: 'center',
+    paddingLeft: spacing.md,
+  },
+  settingsLabel: {
+    color: palette.slate,
+    fontFamily: fontFamily.display,
+    fontSize: fontSize.label,
+    letterSpacing: 1,
+  },
   chipRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.sm,
   },
   chip: {

@@ -4,6 +4,7 @@
 // alternative if web ever becomes a real target: expo-sqlite's wasm web
 // support. Until then this stays a flat JSON blob in localStorage.
 
+import type { CustomGymState, UnitPreference } from '@/domain/types';
 import type { ExerciseSessionResult } from '@/engine/progression';
 import type { PersistedSessionRow, PersistedState, PersistenceDriver } from '@/persistence/types';
 
@@ -11,6 +12,8 @@ const STORAGE_KEY = 'ballast-state-v1';
 
 interface StoredBlob {
   selectedGymProfileId: string | null;
+  unitPreference?: UnitPreference | null;
+  customGym?: CustomGymState | null;
   sessions: PersistedSessionRow[];
 }
 
@@ -45,7 +48,12 @@ export function createDriver(): PersistenceDriver {
         const { exerciseId, loadKg, repsAchieved, feedback } = row;
         (sessionHistoryByExercise[exerciseId] ??= []).push({ loadKg, repsAchieved, feedback });
       }
-      return { selectedGymProfileId: blob.selectedGymProfileId, sessionHistoryByExercise };
+      return {
+        selectedGymProfileId: blob.selectedGymProfileId,
+        unitPreference: blob.unitPreference ?? null,
+        customGym: blob.customGym ?? null,
+        sessionHistoryByExercise,
+      };
     },
 
     async saveSelectedProfile(profileId: string) {
@@ -54,10 +62,26 @@ export function createDriver(): PersistenceDriver {
       writeBlob(blob);
     },
 
+    async saveUnitPreference(unit: UnitPreference) {
+      const blob = readBlob();
+      blob.unitPreference = unit;
+      writeBlob(blob);
+    },
+
+    async saveCustomGym(customGym: CustomGymState) {
+      const blob = readBlob();
+      blob.customGym = customGym;
+      writeBlob(blob);
+    },
+
     async appendSession(row: PersistedSessionRow) {
       const blob = readBlob();
       blob.sessions.push(row);
       writeBlob(blob);
+    },
+
+    async loadAllSessionRows(): Promise<PersistedSessionRow[]> {
+      return readBlob().sessions;
     },
   };
 }

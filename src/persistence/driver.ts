@@ -6,16 +6,29 @@
 import * as SQLite from 'expo-sqlite';
 
 import type { ExerciseSessionResult } from '@/engine/progression';
-import type { SetFeedback } from '@/domain/types';
+import {
+  EQUIPMENT_TAGS,
+  UNIT_PREFERENCES,
+  type CustomGymState,
+  type EquipmentTag,
+  type SetFeedback,
+  type UnitPreference,
+} from '@/domain/types';
 import type { PersistedSessionRow, PersistedState, PersistenceDriver } from '@/persistence/types';
 
 const DB_NAME = 'ballast.db';
+
+/** settings-table keys — the only strings the key column may take. */
+const SETTING_PROFILE = 'selectedGymProfileId';
+const SETTING_UNIT = 'unitPreference';
+const SETTING_CUSTOM_GYM = 'customGymJson';
 
 interface SessionRow {
   exercise_id: string;
   load_kg: number;
   reps_achieved: number;
   feedback: string;
+  completed_at_iso: string;
 }
 
 export function createDriver(): PersistenceDriver {
@@ -78,12 +91,13 @@ export function createDriver(): PersistenceDriver {
     async loadState(): Promise<PersistedState> {
       const database = requireDb();
 
-      const profileRow = await database.getFirstAsync<{ value: string }>(
-        `SELECT value FROM settings WHERE key = 'selectedGymProfileId'`,
+      const settingRows = await database.getAllAsync<{ key: string; value: string }>(
+        `SELECT key, value FROM settings`,
       );
+      const settings = new Map(settingRows.map((row) => [row.key, row.value]));
 
       const rows = await database.getAllAsync<SessionRow>(
-        `SELECT exercise_id, load_kg, reps_achieved, feedback
+        `SELECT exercise_id, load_kg, reps_achieved, feedback, completed_at_iso
          FROM exercise_sessions ORDER BY id ASC`,
       );
 
@@ -99,17 +113,23 @@ export function createDriver(): PersistenceDriver {
       }
 
       return {
-        selectedGymProfileId: profileRow?.value ?? null,
+        selectedGymProfileId: settings.get(SETTING_PROFILE) ?? null,
+        unitPreference: parseUnit(settings.get(SETTING_UNIT)),
+        customGym: parseCustomGym(settings.get(SETTING_CUSTOM_GYM)),
         sessionHistoryByExercise,
       };
     },
 
     async saveSelectedProfile(profileId: string) {
-      await requireDb().runAsync(
-        `INSERT INTO settings (key, value) VALUES ('selectedGymProfileId', ?)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-        profileId,
-      );
+      await upsertSetting(requireDb(), SETTING_PROFILE, profileId);
+    },
+
+    async saveUnitPreference(unit: UnitPreference) {
+      await upsertSetting(requireDb(), SETTING_UNIT, unit);
+    },
+
+    async saveCustomGym(customGym: CustomGymState) {
+      await upsertSetting(requireDb(), SETTING_CUSTOM_GYM, JSON.stringify(customGym));
     },
 
     async appendSession(row: PersistedSessionRow) {
@@ -124,5 +144,49 @@ export function createDriver(): PersistenceDriver {
         row.completedAtIso,
       );
     },
+
+    async loadAllSessionRows(): Promise<PersistedSessionRow[]> {
+      const rows = await requireDb().getAllAsync<SessionRow>(
+        `SELECT exercise_id, load_kg, reps_achieved, feedback, completed_at_iso
+         FROM exercise_sessions ORDER BY id ASC`,
+      );
+      return rows.map((row) => ({
+        exerciseId: row.exercise_id,
+        loadKg: row.load_kg,
+        repsAchieved: row.reps_achieved,
+        feedback: row.feedback as SetFeedback,
+        completedAtIso: row.completed_at_iso,
+      }));
+    },
   };
+}
+
+async function upsertSetting(db: SQLite.SQLiteDatabase, key: string, value: string) {
+  await db.runAsync(
+    `INSERT INTO settings (key, value) VALUES (?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+    key,
+    value,
+  );
+}
+
+function parseUnit(raw: string | undefined): UnitPreference | null {
+  return raw !== undefined && UNIT_PREFERENCES.includes(raw as UnitPreference)
+    ? (raw as UnitPreference)
+    : null;
+}
+
+/** A corrupt stored blob resets to null (loudly) rather than wedging startup. */
+function parseCustomGym(raw: string | undefined): CustomGymState | null {
+  if (raw === undefined) return null;
+  try {
+    const parsed = JSON.parse(raw) as CustomGymState;
+    const equipment = parsed.equipment.filter((tag): tag is EquipmentTag =>
+      EQUIPMENT_TAGS.includes(tag),
+    );
+    return { enabled: parsed.enabled === true, equipment };
+  } catch (error) {
+    console.error('persistence: corrupt custom gym setting, ignoring', error);
+    return null;
+  }
 }

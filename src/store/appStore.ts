@@ -21,7 +21,14 @@ import {
 import { estimateSessionEnergy, type EnergyEstimate } from '@/engine/energy';
 import { seedLoadKgForExercise } from '@/engine/seeding';
 import { persistence } from '@/persistence';
-import type { GymProfile, MuscleGroup, SetFeedback } from '@/domain/types';
+import {
+  CUSTOM_GYM_PROFILE_ID,
+  type CustomGymState,
+  type GymProfile,
+  type MuscleGroup,
+  type SetFeedback,
+  type UnitPreference,
+} from '@/domain/types';
 
 /** One exercise mid-workout: the live prescription plus set-by-set feedback. */
 export interface ActiveExercise {
@@ -70,10 +77,20 @@ interface AppState {
   activeSession: ActiveSession | null;
   /** Set by endSession(); the summary screen reads it. Replaced each session. */
   lastSessionSummary: SessionSummary | null;
+  /** Display units only — storage and progression stay kg (domain/units.ts). */
+  unitPreference: UnitPreference;
+  /** "Different gym": off = stock profiles exactly as shipped. */
+  customGym: CustomGymState;
 
   /** Load persisted state; call once from the root layout. */
   hydrate: () => Promise<void>;
   selectGymProfile: (profileId: string) => void;
+  setUnitPreference: (unit: UnitPreference) => void;
+  /**
+   * Replace the custom gym description. Enabling selects it; disabling
+   * while selected falls back to the first stock profile.
+   */
+  setCustomGym: (customGym: CustomGymState) => void;
   /**
    * Declare or switch today's focus. An already-running session keeps its
    * completed work and clock — only the recommender's target changes.
@@ -101,6 +118,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   activeExercise: null,
   activeSession: null,
   lastSessionSummary: null,
+  unitPreference: 'kg',
+  // Bodyweight-only until described — the one tag every gym has.
+  customGym: { enabled: false, equipment: ['bodyweight'] },
 
   hydrate: async () => {
     try {
@@ -110,6 +130,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         hydrated: true,
         selectedGymProfileId: persisted.selectedGymProfileId ?? DEFAULT_GYM_PROFILES[0]!.id,
         sessionHistoryByExercise: persisted.sessionHistoryByExercise,
+        unitPreference: persisted.unitPreference ?? 'kg',
+        customGym: persisted.customGym ?? { enabled: false, equipment: ['bodyweight'] },
       });
     } catch (error) {
       // Degrade to in-memory defaults but keep the app usable; the failure
@@ -124,6 +146,27 @@ export const useAppStore = create<AppState>((set, get) => ({
     persistence
       .saveSelectedProfile(profileId)
       .catch((error) => console.error('persistence: profile save failed', error));
+  },
+
+  setUnitPreference: (unit) => {
+    set({ unitPreference: unit });
+    persistence
+      .saveUnitPreference(unit)
+      .catch((error) => console.error('persistence: unit save failed', error));
+  },
+
+  setCustomGym: (customGym) => {
+    set({ customGym });
+    persistence
+      .saveCustomGym(customGym)
+      .catch((error) => console.error('persistence: custom gym save failed', error));
+
+    const { selectedGymProfileId, selectGymProfile } = get();
+    if (customGym.enabled && selectedGymProfileId !== CUSTOM_GYM_PROFILE_ID) {
+      selectGymProfile(CUSTOM_GYM_PROFILE_ID);
+    } else if (!customGym.enabled && selectedGymProfileId === CUSTOM_GYM_PROFILE_ID) {
+      selectGymProfile(DEFAULT_GYM_PROFILES[0]!.id);
+    }
   },
 
   startSession: (muscleGroup) =>
@@ -253,9 +296,23 @@ export const useAppStore = create<AppState>((set, get) => ({
   abandonExercise: () => set({ activeExercise: null }),
 }));
 
-/** Resolve the active profile; falls back to the first default if the stored
- *  id goes stale (e.g. a deleted custom profile) rather than crashing Home. */
-export function getProfileById(profileId: string): GymProfile {
+/**
+ * Resolve the active profile, including the user-built one from Settings.
+ * Falls back to the first stock profile if the stored id goes stale (custom
+ * gym disabled, deleted profile) rather than crashing Home.
+ */
+export function getProfileById(profileId: string, customGym?: CustomGymState | null): GymProfile {
+  if (profileId === CUSTOM_GYM_PROFILE_ID && customGym?.enabled) {
+    return {
+      id: CUSTOM_GYM_PROFILE_ID,
+      name: 'Custom Gym',
+      // Availability is a subset check; bodyweight is guaranteed like the
+      // stock profiles (catalogValidation enforces the same invariant).
+      equipment: customGym.equipment.includes('bodyweight')
+        ? customGym.equipment
+        : [...customGym.equipment, 'bodyweight'],
+    };
+  }
   return (
     DEFAULT_GYM_PROFILES.find((profile) => profile.id === profileId) ?? DEFAULT_GYM_PROFILES[0]!
   );
