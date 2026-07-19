@@ -10,9 +10,9 @@ import {
   EASY_INCREMENT_MULTIPLIER,
   EASY_REP_JUMP,
   GRIND_REPEAT_TRIGGER_COUNT,
-  PROGRESSION_BY_CLASS,
+  type ProgressionWindow,
 } from '@/config/progressionConfig';
-import type { ExerciseClass, SetFeedback } from '@/domain/types';
+import type { SetFeedback } from '@/domain/types';
 
 /** One past session's outcome for a single exercise, aggregated across sets. */
 export interface ExerciseSessionResult {
@@ -45,8 +45,8 @@ export function worstFeedback(feedbacks: readonly SetFeedback[]): SetFeedback {
 }
 
 /** First tracked session: user (or a substitution seed, PRD D2) supplies the load. */
-export function seedPlan(exerciseClass: ExerciseClass, seedLoadKg: number): NextSetPlan {
-  const { repRangeLow } = PROGRESSION_BY_CLASS[exerciseClass];
+export function seedPlan(window: ProgressionWindow, seedLoadKg: number): NextSetPlan {
+  const { repRangeLow } = window;
   return {
     loadKg: seedLoadKg,
     targetReps: repRangeLow,
@@ -68,7 +68,7 @@ export function seedPlan(exerciseClass: ExerciseClass, seedLoadKg: number): Next
  * Throws on empty history: seeding is an explicit, separate act (seedPlan).
  */
 export function prescribeNextSession(
-  exerciseClass: ExerciseClass,
+  window: ProgressionWindow,
   history: readonly ExerciseSessionResult[],
 ): NextSetPlan {
   const last = history[history.length - 1];
@@ -76,7 +76,7 @@ export function prescribeNextSession(
     throw new Error('prescribeNextSession: empty history — use seedPlan() first');
   }
 
-  const { repRangeLow, repRangeHigh, incrementKg } = PROGRESSION_BY_CLASS[exerciseClass];
+  const { repRangeLow, repRangeHigh, incrementKg } = window;
 
   if (last.feedback === 'grind') {
     const streak = trailingGrindCount(history);

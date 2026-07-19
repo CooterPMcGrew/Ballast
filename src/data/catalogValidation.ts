@@ -6,10 +6,21 @@
 import {
   EQUIPMENT_TAGS,
   EXERCISE_CLASSES,
+  MUSCLE_COMPONENTS,
   MUSCLE_GROUPS,
   type Exercise,
   type GymProfile,
+  type MuscleComponent,
+  type ProgressionOverride,
 } from '@/domain/types';
+
+/**
+ * Authoring slack for contribution sums: shares should describe the whole
+ * movement (≈1.0) but hand-edited decimals deserve a little float/rounding
+ * grace, not a startup crash.
+ */
+const CONTRIBUTION_SUM_MIN = 0.95;
+const CONTRIBUTION_SUM_MAX = 1.05;
 
 export function validateExercises(raw: unknown): Exercise[] {
   if (!Array.isArray(raw)) {
@@ -51,8 +62,86 @@ export function validateExercises(raw: unknown): Exercise[] {
       throw new Error(`${where} ("${id}"): a muscle may appear in only one role`);
     }
 
-    return { id, name, exerciseClass, equipment, primaryMuscles, secondaryMuscles, tertiaryMuscles };
+    const muscleContributions = optionalContributions(record, `${where} ("${id}")`);
+    const progressionOverride = optionalProgressionOverride(record, `${where} ("${id}")`);
+
+    return {
+      id,
+      name,
+      exerciseClass,
+      equipment,
+      primaryMuscles,
+      secondaryMuscles,
+      tertiaryMuscles,
+      muscleContributions,
+      progressionOverride,
+    };
   });
+}
+
+function optionalContributions(
+  record: Record<string, unknown>,
+  where: string,
+): Partial<Record<MuscleComponent, number>> | undefined {
+  const value = record['muscleContributions'];
+  if (value === undefined) return undefined;
+  const entries = Object.entries(asRecord(value, `${where}: "muscleContributions"`));
+  if (entries.length === 0) {
+    throw new Error(`${where}: "muscleContributions" must not be empty — omit it instead`);
+  }
+
+  let sum = 0;
+  const contributions: Partial<Record<MuscleComponent, number>> = {};
+  for (const [component, share] of entries) {
+    if (!MUSCLE_COMPONENTS.includes(component as MuscleComponent)) {
+      throw new Error(
+        `${where}: "muscleContributions" has unknown component "${component}" — must be one of: ${MUSCLE_COMPONENTS.join(', ')}`,
+      );
+    }
+    if (typeof share !== 'number' || !(share > 0) || share > 1) {
+      throw new Error(
+        `${where}: "muscleContributions.${component}" must be a number in (0, 1], got ${String(share)}`,
+      );
+    }
+    contributions[component as MuscleComponent] = share;
+    sum += share;
+  }
+  if (sum < CONTRIBUTION_SUM_MIN || sum > CONTRIBUTION_SUM_MAX) {
+    throw new Error(
+      `${where}: "muscleContributions" shares sum to ${sum.toFixed(2)} — must total ≈1.0 (${CONTRIBUTION_SUM_MIN}–${CONTRIBUTION_SUM_MAX})`,
+    );
+  }
+  return contributions;
+}
+
+function optionalProgressionOverride(
+  record: Record<string, unknown>,
+  where: string,
+): ProgressionOverride | undefined {
+  const value = record['progressionOverride'];
+  if (value === undefined) return undefined;
+  const override = asRecord(value, `${where}: "progressionOverride"`);
+
+  const result: ProgressionOverride = {};
+  for (const field of ['repRangeLow', 'repRangeHigh', 'incrementKg'] as const) {
+    const fieldValue = override[field];
+    if (fieldValue === undefined) continue;
+    if (typeof fieldValue !== 'number' || !(fieldValue > 0)) {
+      throw new Error(`${where}: "progressionOverride.${field}" must be a positive number`);
+    }
+    result[field] = fieldValue;
+  }
+  if (Object.keys(result).length === 0) {
+    throw new Error(`${where}: "progressionOverride" must set at least one field — omit it instead`);
+  }
+  if (
+    result.repRangeLow !== undefined &&
+    result.repRangeHigh !== undefined &&
+    result.repRangeLow >= result.repRangeHigh
+  ) {
+    throw new Error(`${where}: "progressionOverride" repRangeLow must be below repRangeHigh`);
+  }
+  return result;
 }
 
 export function validateGymProfiles(raw: unknown): GymProfile[] {

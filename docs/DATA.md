@@ -39,8 +39,25 @@ tests (unique ids, taxonomy rules) run against your data.
 | `primaryMuscles` | At least one. The prime movers. |
 | `secondaryMuscles` | Required field (may be `[]`). Meaningful assisting muscles — these count in fatigue accounting. |
 | `tertiaryMuscles` | Optional — omit the field entirely unless the activation genuinely matters for fatigue accounting. Rule of thumb: if frying this muscle here should block programming its isolation work the same day, it belongs in *secondary*, not tertiary (e.g. triceps under heavy pressing). If it barely matters, leave it out. |
+| `muscleContributions` | Optional — activation share per muscle **component** (see §2b), values in `(0, 1]`, summing to ≈1.0 (0.95–1.05 accepted). Powers the session recommender's coverage ranking. When omitted, shares are derived from the role lists (`DERIVED_SHARE_BY_ROLE`) — rough but functional. Author these where regional targeting matters (the shoulder movements ship with examples). |
+| `progressionOverride` | Optional — per-exercise growth rate. Any subset of `repRangeLow` / `repRangeHigh` / `incrementKg`; unset fields fall back to the class window (§3). Example: `{ "incrementKg": 1 }` for a lift that only tolerates small jumps. |
 
 A muscle may appear in only **one** role per exercise.
+
+Example with the new fields:
+
+```json
+{
+  "id": "lateral-raise",
+  "name": "Lateral Raise",
+  "exerciseClass": "isolation",
+  "equipment": ["dumbbell"],
+  "primaryMuscles": ["shoulders"],
+  "secondaryMuscles": [],
+  "muscleContributions": { "sideDelt": 0.9, "frontDelt": 0.1 },
+  "progressionOverride": { "incrementKg": 1 }
+}
+```
 
 ## 2. Allowed values
 
@@ -70,6 +87,23 @@ The lists live in [`src/domain/types.ts`](../src/domain/types.ts)
 (`MUSCLE_GROUPS`, `EQUIPMENT_TAGS`). Adding a new tag there automatically
 makes it valid in the JSON and available to profiles; also add its seed load
 (§4).
+
+### 2b. Muscle components (`muscleContributions` keys)
+
+Components subdivide a group only where training actually targets regions
+(`MUSCLE_COMPONENTS_BY_GROUP` in types.ts):
+
+```
+shoulders → frontDelt  sideDelt  rearDelt
+chest     → upperChest midChest  lowerChest
+back      → lats       upperBack lowerBack
+(all other groups are their own single component: biceps, quads, core, …)
+```
+
+The session recommender ranks by *uncovered* components: after an overhead
+press (front-delt heavy), lateral raises and rear-delt flies rise because
+side/rear delts are still untouched. Shares are seeds, not EMG truth —
+rough is fine, consistent is what matters.
 
 ## 3. What `exerciseClass` controls
 
@@ -124,6 +158,11 @@ exercise_sessions  (id INTEGER PK AUTOINCREMENT,
 `exercise_id` is why catalog ids must stay stable. The web dev preview uses a
 localStorage stand-in (`ballast-state-v1`) — dev convenience only; the
 shipped app path is SQLite.
+
+Three catalog tables also exist (`exercises`, `exercise_equipment`,
+`exercise_muscle_contributions`) — **schema only, deliberately unpopulated**.
+The JSON files above remain the live catalog; these tables become the
+authoritative store when user-defined exercises and per-user profiles arrive.
 
 ## 7. Out of scope for these files
 

@@ -5,7 +5,11 @@
 
 import { create } from 'zustand';
 
-import { PROGRESSION_BY_CLASS, SETS_PER_EXERCISE_DEFAULT } from '@/config/progressionConfig';
+import {
+  PROGRESSION_BY_CLASS,
+  progressionWindowForExercise,
+  SETS_PER_EXERCISE_DEFAULT,
+} from '@/config/progressionConfig';
 import { DEFAULT_GYM_PROFILES } from '@/data/defaultGymProfiles';
 import { getExerciseById } from '@/data/exerciseCatalog';
 import {
@@ -16,7 +20,7 @@ import {
 } from '@/engine/progression';
 import { seedLoadKgForExercise } from '@/engine/seeding';
 import { persistence } from '@/persistence';
-import type { GymProfile, SetFeedback } from '@/domain/types';
+import type { GymProfile, MuscleGroup, SetFeedback } from '@/domain/types';
 
 /** One exercise mid-workout: the live prescription plus set-by-set feedback. */
 export interface ActiveExercise {
@@ -29,6 +33,19 @@ export interface ActiveExercise {
   totalSets: number;
 }
 
+/**
+ * A running workout session: the declared intent (target group) plus what's
+ * been completed, which the recommender re-ranks against after every
+ * exercise. In-memory only — the completed sets themselves persist per
+ * exercise, but session-scoped coverage resets on app restart (workaround:
+ * acceptable for one workout; a persisted session row is the root fix and
+ * arrives with workout history views).
+ */
+export interface ActiveSession {
+  muscleGroup: MuscleGroup;
+  completedExerciseIds: string[];
+}
+
 interface AppState {
   /** False until persisted state has been loaded (or load has failed loudly). */
   hydrated: boolean;
@@ -37,10 +54,14 @@ interface AppState {
   /** Per-exercise session history, most recent last — the engine's only input. */
   sessionHistoryByExercise: Record<string, ExerciseSessionResult[]>;
   activeExercise: ActiveExercise | null;
+  activeSession: ActiveSession | null;
 
   /** Load persisted state; call once from the root layout. */
   hydrate: () => Promise<void>;
   selectGymProfile: (profileId: string) => void;
+  /** Declare today's intent; the session page ranks the catalog against it. */
+  startSession: (muscleGroup: MuscleGroup) => void;
+  endSession: () => void;
   /** Prescribe from history, or seed on first encounter (PRD D2). */
   startExercise: (exerciseId: string) => void;
   /** Stepper adjustments — the only mid-workout numeric input (zero-precision). */
@@ -59,6 +80,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   selectedGymProfileId: DEFAULT_GYM_PROFILES[0]!.id,
   sessionHistoryByExercise: {},
   activeExercise: null,
+  activeSession: null,
 
   hydrate: async () => {
     try {
@@ -84,6 +106,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       .catch((error) => console.error('persistence: profile save failed', error));
   },
 
+  startSession: (muscleGroup) => set({ activeSession: { muscleGroup, completedExerciseIds: [] } }),
+
+  endSession: () => set({ activeSession: null }),
+
   startExercise: (exerciseId) => {
     const exercise = getExerciseById(exerciseId);
     if (!exercise) {
@@ -91,11 +117,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       console.error(`startExercise: unknown exercise id "${exerciseId}"`);
       return;
     }
+    const window = progressionWindowForExercise(exercise);
     const history = get().sessionHistoryByExercise[exerciseId] ?? [];
     const plan =
       history.length > 0
-        ? prescribeNextSession(exercise.exerciseClass, history)
-        : seedPlan(exercise.exerciseClass, seedLoadKgForExercise(exercise));
+        ? prescribeNextSession(window, history)
+        : seedPlan(window, seedLoadKgForExercise(exercise));
     set({
       activeExercise: {
         exerciseId,
@@ -151,6 +178,17 @@ export const useAppStore = create<AppState>((set, get) => ({
           result,
         ],
       },
+      // Feed session coverage so the recommender re-ranks around what's done.
+      activeSession: state.activeSession
+        ? {
+            ...state.activeSession,
+            completedExerciseIds: state.activeSession.completedExerciseIds.includes(
+              active.exerciseId,
+            )
+              ? state.activeSession.completedExerciseIds
+              : [...state.activeSession.completedExerciseIds, active.exerciseId],
+          }
+        : null,
     }));
     persistence
       .appendSession({
@@ -172,11 +210,12 @@ export function getProfileById(profileId: string): GymProfile {
   );
 }
 
-/** Stepper step size follows the exercise class increment (double progression). */
+/** Stepper step size follows the exercise's effective increment (double progression). */
 export function loadStepKgForExercise(exerciseId: string): number {
   const exercise = getExerciseById(exerciseId);
-  const exerciseClass = exercise?.exerciseClass ?? 'compound';
-  return PROGRESSION_BY_CLASS[exerciseClass].incrementKg;
+  return exercise
+    ? progressionWindowForExercise(exercise).incrementKg
+    : PROGRESSION_BY_CLASS.compound.incrementKg;
 }
 
 /** Kill 0.1+0.2 artifacts before they reach the display or history. */

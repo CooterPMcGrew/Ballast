@@ -20,6 +20,62 @@ export const MUSCLE_GROUPS = [
 ] as const;
 export type MuscleGroup = (typeof MUSCLE_GROUPS)[number];
 
+/**
+ * Components subdivide a group only where programming actually differs
+ * (CLAUDE.md §6.5 — taxonomy must earn its keep in fatigue accounting).
+ * Shoulders/chest/back train regionally (a press leaves side/rear delts
+ * unworked — the whole point of the session recommender); the rest stay
+ * single-component until a real programming need splits them.
+ */
+export const MUSCLE_COMPONENTS_BY_GROUP = {
+  chest: ['upperChest', 'midChest', 'lowerChest'],
+  back: ['lats', 'upperBack', 'lowerBack'],
+  shoulders: ['frontDelt', 'sideDelt', 'rearDelt'],
+  biceps: ['biceps'],
+  triceps: ['triceps'],
+  forearms: ['forearms'],
+  quads: ['quads'],
+  hamstrings: ['hamstrings'],
+  glutes: ['glutes'],
+  calves: ['calves'],
+  core: ['core'],
+} as const satisfies Record<MuscleGroup, readonly string[]>;
+
+export type MuscleComponent = (typeof MUSCLE_COMPONENTS_BY_GROUP)[MuscleGroup][number];
+
+export const MUSCLE_COMPONENTS: readonly MuscleComponent[] = Object.values(
+  MUSCLE_COMPONENTS_BY_GROUP,
+).flat();
+
+/** Reverse lookup, built once at module load. */
+export const GROUP_BY_COMPONENT: Readonly<Record<MuscleComponent, MuscleGroup>> =
+  Object.fromEntries(
+    MUSCLE_GROUPS.flatMap((group) =>
+      MUSCLE_COMPONENTS_BY_GROUP[group].map((component) => [component, group]),
+    ),
+  ) as Record<MuscleComponent, MuscleGroup>;
+
+/** Human labels for UI + rationale strings ("sideDelt" reads badly mid-set). */
+export const COMPONENT_LABELS: Readonly<Record<MuscleComponent, string>> = {
+  upperChest: 'upper chest',
+  midChest: 'mid chest',
+  lowerChest: 'lower chest',
+  lats: 'lats',
+  upperBack: 'upper back',
+  lowerBack: 'lower back',
+  frontDelt: 'front delt',
+  sideDelt: 'side delt',
+  rearDelt: 'rear delt',
+  biceps: 'biceps',
+  triceps: 'triceps',
+  forearms: 'forearms',
+  quads: 'quads',
+  hamstrings: 'hamstrings',
+  glutes: 'glutes',
+  calves: 'calves',
+  core: 'core',
+};
+
 export const EQUIPMENT_TAGS = [
   'barbell',
   'dumbbell',
@@ -55,6 +111,26 @@ export interface Exercise {
   primaryMuscles: MuscleGroup[];
   secondaryMuscles: MuscleGroup[];
   tertiaryMuscles?: MuscleGroup[];
+  /**
+   * Activation share per muscle component, 0–1, summing to ≈1. Seeds, not
+   * truth (CLAUDE.md §6.2) — rough authoring estimates the recommender ranks
+   * by; per-lift EMG precision is not claimed. Optional: when absent, shares
+   * are derived from the role lists (see contributionsForExercise).
+   */
+  muscleContributions?: Partial<Record<MuscleComponent, number>>;
+  /**
+   * Per-exercise growth rate. Overrides any subset of the class default
+   * window (PROGRESSION_BY_CLASS) — e.g. a lift that only tolerates 1 kg
+   * jumps, or a stubborn movement given a wider rep range.
+   */
+  progressionOverride?: ProgressionOverride;
+}
+
+/** Partial override of a ProgressionWindow; unset fields fall back to class defaults. */
+export interface ProgressionOverride {
+  repRangeLow?: number;
+  repRangeHigh?: number;
+  incrementKg?: number;
 }
 
 /** Equipment context (PRD §1). The selected profile filters the exercise DB. */
