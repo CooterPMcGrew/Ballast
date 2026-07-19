@@ -7,6 +7,13 @@ import { getExerciseById } from '@/data/exerciseCatalog';
 import type { SetFeedback } from '@/domain/types';
 import { formatLoad, unitSuffix } from '@/domain/units';
 import { loadStepKgForExercise, useAppStore } from '@/store/appStore';
+
+/** How the Post-Set Matrix words map back when replaying history. */
+const FEEDBACK_LABELS: Record<SetFeedback, string> = {
+  easy: 'FELT EASY',
+  justRight: 'JUST RIGHT',
+  grind: 'GRIND',
+};
 import { fontFamily, fontSize, palette, spacing, touchTarget } from '@/theme/tokens';
 
 /**
@@ -39,6 +46,11 @@ export default function WorkoutScreen() {
   const [awaitingFeedback, setAwaitingFeedback] = useState(false);
   const matrixArmedAtMs = useRef(0);
   const exercise = exerciseId ? getExerciseById(exerciseId) : undefined;
+  const history = useAppStore((state) =>
+    exerciseId ? state.sessionHistoryByExercise[exerciseId] : undefined,
+  );
+  // Where the prescription came from — the previous outing of this movement.
+  const lastResult = history?.[history.length - 1];
 
   useEffect(() => {
     if (exercise && (!active || active.exerciseId !== exercise.id)) {
@@ -104,6 +116,13 @@ export default function WorkoutScreen() {
         </Text>
         <Text style={styles.repsValue}>× {active.targetReps}</Text>
         <Text style={styles.rationale}>{active.rationale}</Text>
+        {lastResult && (
+          <Text style={styles.lastTime}>
+            LAST TIME {formatLoad(lastResult.loadKg, unitPreference)}{' '}
+            {unitSuffix(unitPreference)} × {lastResult.repsAchieved} ·{' '}
+            {FEEDBACK_LABELS[lastResult.feedback]}
+          </Text>
+        )}
       </View>
 
       <View style={styles.controls}>
@@ -256,6 +275,13 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.displayRegular,
     fontSize: fontSize.label,
     marginTop: spacing.md,
+    textAlign: 'center',
+  },
+  lastTime: {
+    color: palette.slate,
+    fontFamily: fontFamily.mono,
+    fontSize: fontSize.caption,
+    marginTop: spacing.xs,
     textAlign: 'center',
   },
   // Everything interactive sits below here — lower two-thirds, one thumb.
