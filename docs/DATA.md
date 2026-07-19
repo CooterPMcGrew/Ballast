@@ -8,7 +8,7 @@ accounting.
 
 | File | What it holds |
 |------|---------------|
-| `src/data/exercises.json` | The exercise catalog (38 starter entries included as examples — replace or extend freely) |
+| `src/data/exercises.json` | The exercise catalog (56 starter entries, all with authored `muscleContributions` — replace or extend freely) |
 | `src/data/gymProfiles.json` | Equipment contexts (Commercial / Home / Hotel to start) |
 
 After editing, run `npm run typecheck && npm test` — the catalog integrity

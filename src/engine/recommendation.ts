@@ -11,6 +11,7 @@ import {
   DERIVED_SHARE_BY_ROLE,
   RECOMMENDATION_CLASS_WEIGHT,
   RECOMMENDATION_COVERED_EPSILON,
+  RECOMMENDATION_FRESHNESS_DECAY_PER_EXERCISE,
   RECOMMENDATION_MIN_TARGET_SHARE,
 } from '@/config/progressionConfig';
 import { isExerciseAvailable } from '@/domain/equipment';
@@ -92,6 +93,11 @@ export function rankExercisesForSession(options: {
   const coverage = accumulateCoverage(completedExercises);
   const targetComponents = MUSCLE_COMPONENTS_BY_GROUP[targetGroup];
   const completedIds = new Set(completedExercises.map((exercise) => exercise.id));
+  // 1 fresh → 0 as work accumulates (RECOMMENDATION_FRESHNESS_DECAY_PER_EXERCISE).
+  const freshness = Math.max(
+    0,
+    1 - completedExercises.length * RECOMMENDATION_FRESHNESS_DECAY_PER_EXERCISE,
+  );
 
   return catalog
     .filter((exercise) => !completedIds.has(exercise.id) && isExerciseAvailable(exercise, profile))
@@ -112,9 +118,9 @@ export function rankExercisesForSession(options: {
           topComponent = component;
         }
       }
-      // Exertion-order bias (see RECOMMENDATION_CLASS_WEIGHT): compounds
-      // surface first while fresh, without drowning out coverage gaps.
-      score *= RECOMMENDATION_CLASS_WEIGHT[exercise.exerciseClass];
+      // Exertion-order bias: compounds surface first while fresh; the bonus
+      // decays across the session so coverage gaps win the back half.
+      score *= 1 + (RECOMMENDATION_CLASS_WEIGHT[exercise.exerciseClass] - 1) * freshness;
       return { exercise, targetShare, score, topComponent };
     })
     .filter((entry) => entry.targetShare >= RECOMMENDATION_MIN_TARGET_SHARE)

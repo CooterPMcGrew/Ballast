@@ -35,7 +35,17 @@ describe('contributionsForExercise', () => {
   });
 
   it('derives shares from role lists when not authored, summing to ≈1', () => {
-    const shares = contributionsForExercise(exercise('barbell-bench-press'));
+    // Synthetic: the shipped catalog is fully authored, so derivation needs
+    // its own fixture (it still guards user-added entries without shares).
+    const unauthored: Exercise = {
+      id: 'test-press',
+      name: 'Test Press',
+      exerciseClass: 'compound',
+      equipment: ['barbell'],
+      primaryMuscles: ['chest'],
+      secondaryMuscles: ['triceps'],
+    };
+    const shares = contributionsForExercise(unauthored);
     const total = Object.values(shares).reduce((sum, share) => sum + share, 0);
     expect(total).toBeCloseTo(1, 5);
     // Primary chest splits evenly across its three components.
@@ -50,11 +60,10 @@ describe('rankExercisesForSession — shoulders at the commercial gym', () => {
     targetGroup: 'shoulders' as const,
   };
 
-  it('fresh session: the compound presses lead, isolation follows', () => {
+  it('fresh session: compounds lead while fresh, isolation follows', () => {
     const ids = rankIds(rankExercisesForSession({ ...options, completedExercises: [] }));
-    expect(ids.slice(0, 2)).toEqual(
-      expect.arrayContaining(['overhead-press', 'seated-dumbbell-shoulder-press']),
-    );
+    const topClasses = ids.slice(0, 2).map((id) => exercise(id).exerciseClass);
+    expect(topClasses).toEqual(['compound', 'compound']);
   });
 
   it('after overhead press: side/rear delt movements outrank another press', () => {
@@ -64,7 +73,9 @@ describe('rankExercisesForSession — shoulders at the commercial gym', () => {
     });
     const ids = rankIds(ranked);
 
-    expect(ids.slice(0, 2)).toEqual(['rear-delt-fly', 'lateral-raise']);
+    // The PRD's founding example, verbatim: press first, then the app steers
+    // to the untouched heads — rear delt fly and cable lateral raises.
+    expect(ids.slice(0, 3)).toEqual(['rear-delt-fly', 'cable-lateral-raise', 'lateral-raise']);
     expect(ids.indexOf('seated-dumbbell-shoulder-press')).toBeGreaterThan(
       ids.indexOf('lateral-raise'),
     );

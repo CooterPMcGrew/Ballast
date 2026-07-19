@@ -100,6 +100,16 @@ export const RECOMMENDATION_CLASS_WEIGHT: Record<ExerciseClass, number> = {
   isolation: 1,
 };
 
+/**
+ * The compound bonus fades as the session accumulates exercises: big
+ * movements belong at the front of a session, gap-fill work at the back.
+ * Each completed exercise removes this fraction of the bonus (floored at
+ * zero — from the third exercise on, pure coverage decides). Without the
+ * decay, a second overlapping press can outrank the isolation that fills
+ * an untouched component.
+ */
+export const RECOMMENDATION_FRESHNESS_DECAY_PER_EXERCISE = 0.5;
+
 // ── Session energy estimate tunables ──────────────────────────────────
 
 /**
