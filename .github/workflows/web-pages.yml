@@ -1,0 +1,53 @@
+# Web build → GitHub Pages, for browser prototyping (iPhone friends).
+# Live at: https://cooterpmcgrew.github.io/Ballast/
+#
+# Honest scope: the web build stores data in the browser (localStorage
+# driver) and needs a connection to load — a prototype channel, not the
+# product. The product is the Android APK (android-apk.yml).
+
+name: web-pages
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx expo export --platform web
+
+      # SPA fallback: Pages serves 404.html for unknown paths, so deep
+      # links (/session, /settings) resolve to the router instead of 404.
+      - run: cp dist/index.html dist/404.html
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
