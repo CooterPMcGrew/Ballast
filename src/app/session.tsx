@@ -7,7 +7,7 @@ import { BodyHeatMap } from '@/components/BodyHeatMap';
 import { MuscleMap } from '@/components/MuscleMap';
 import { DEFAULT_GYM_PROFILES } from '@/data/defaultGymProfiles';
 import { EXERCISE_CATALOG, getExerciseById } from '@/data/exerciseCatalog';
-import { CUSTOM_GYM_PROFILE_ID } from '@/domain/types';
+import { CUSTOM_GYM_PROFILE_ID, SPLIT_PRESETS } from '@/domain/types';
 import { filterAvailableExercises } from '@/domain/equipment';
 import {
   COMPONENT_LABELS,
@@ -67,15 +67,24 @@ export default function SessionScreen() {
   const startSession = useAppStore((state) => state.startSession);
   const endSession = useAppStore((state) => state.endSession);
 
-  const targetGroup = MUSCLE_GROUPS.includes(muscleGroup as MuscleGroup)
-    ? (muscleGroup as MuscleGroup)
-    : null;
+  // Focus param: one muscle or a comma-joined preset ("chest,shoulders,triceps").
+  const targetGroups = (muscleGroup ?? '')
+    .split(',')
+    .filter((group): group is MuscleGroup => MUSCLE_GROUPS.includes(group as MuscleGroup));
+  const focusKey = targetGroups.join(',');
 
   useEffect(() => {
-    if (targetGroup && activeSession?.muscleGroup !== targetGroup) {
-      startSession(targetGroup);
+    if (targetGroups.length > 0 && activeSession?.muscleGroups.join(',') !== focusKey) {
+      startSession(targetGroups);
     }
-  }, [targetGroup, activeSession, startSession]);
+    // focusKey stands in for targetGroups — same data, stable identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusKey, activeSession, startSession]);
+
+  // Preset label when the focus matches one ("PUSH"), else the group list.
+  const focusLabel =
+    Object.entries(SPLIT_PRESETS).find(([, groups]) => groups.join(',') === focusKey)?.[0] ??
+    targetGroups.join(' · ').toUpperCase();
 
   const onEndSessionShared = () => {
     endSession();
@@ -83,7 +92,7 @@ export default function SessionScreen() {
     router.replace('/summary');
   };
 
-  if (!targetGroup) {
+  if (targetGroups.length === 0) {
     const pickerProfile = getProfileById(selectedProfileId, customGym);
     const profiles = customGym.enabled
       ? [...DEFAULT_GYM_PROFILES, getProfileById(CUSTOM_GYM_PROFILE_ID, customGym)]
@@ -121,6 +130,25 @@ export default function SessionScreen() {
           <Text style={styles.kicker}>
             {activeSession ? 'SWITCH FOCUS' : 'WHAT ARE YOU TRAINING?'}
           </Text>
+          <View style={styles.chipRow}>
+            {Object.entries(SPLIT_PRESETS).map(([name, groups]) => (
+              <Pressable
+                key={name}
+                testID={`split-${name}`}
+                onPress={() =>
+                  router.replace({
+                    pathname: '/session',
+                    params: { muscleGroup: groups.join(',') },
+                  })
+                }
+                style={styles.chip}
+              >
+                <Text style={styles.chipLabel}>{name}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={styles.kicker}>OR ONE MUSCLE</Text>
           <View style={styles.muscleGrid}>
             {MUSCLE_GROUPS.map((group) => (
               <Pressable
@@ -154,7 +182,7 @@ export default function SessionScreen() {
   const ranked = rankExercisesForSession({
     catalog: EXERCISE_CATALOG,
     profile,
-    targetGroup,
+    targetGroups,
     completedExercises,
   });
 
@@ -179,12 +207,12 @@ export default function SessionScreen() {
         </Pressable>
 
         <Text style={styles.kicker}>
-          {targetGroup.toUpperCase()} — {profile.name.toUpperCase()}
+          {focusLabel} — {profile.name.toUpperCase()}
         </Text>
 
         {/* Coverage strip: per-component state, the recommender's working memory. */}
         <View style={styles.coverageRow}>
-          {MUSCLE_COMPONENTS_BY_GROUP[targetGroup].map((component) => {
+          {targetGroups.flatMap((group) => MUSCLE_COMPONENTS_BY_GROUP[group]).map((component) => {
             const covered = Math.min(1, coverage[component] ?? 0);
             const worked = covered > 0;
             return (

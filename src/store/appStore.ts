@@ -59,7 +59,8 @@ export interface SetLogEntry {
 }
 
 export interface ActiveSession {
-  muscleGroup: MuscleGroup;
+  /** Current focus — one muscle (bro split) or a preset's set (PPL etc.). */
+  muscleGroups: MuscleGroup[];
   completedExerciseIds: string[];
   startedAtIso: string;
   setsCompleted: number;
@@ -109,7 +110,7 @@ interface AppState {
    * Declare or switch today's focus. An already-running session keeps its
    * completed work and clock — only the recommender's target changes.
    */
-  startSession: (muscleGroup: MuscleGroup) => void;
+  startSession: (muscleGroups: MuscleGroup[]) => void;
   /** Close the session and leave a summary in lastSessionSummary. */
   endSession: () => void;
   /** Prescribe from history, or seed on first encounter (PRD D2). */
@@ -214,12 +215,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  startSession: (muscleGroup) =>
+  startSession: (muscleGroups) =>
     set((state) => ({
       activeSession: state.activeSession
-        ? { ...state.activeSession, muscleGroup }
+        ? { ...state.activeSession, muscleGroups }
         : {
-            muscleGroup,
+            muscleGroups,
             completedExerciseIds: [],
             startedAtIso: new Date().toISOString(),
             setsCompleted: 0,

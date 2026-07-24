@@ -21,6 +21,20 @@ export const MUSCLE_GROUPS = [
 export type MuscleGroup = (typeof MUSCLE_GROUPS)[number];
 
 /**
+ * Common training splits (demo feedback): a split day is just a multi-group
+ * focus — PUSH ranks chest+shoulders+triceps together. The single-muscle
+ * grid below the presets IS the bro split; it needs no preset entries.
+ */
+export const SPLIT_PRESETS = {
+  PUSH: ['chest', 'shoulders', 'triceps'],
+  PULL: ['back', 'biceps', 'forearms'],
+  LEGS: ['quads', 'hamstrings', 'glutes', 'calves'],
+  UPPER: ['chest', 'back', 'shoulders', 'biceps', 'triceps'],
+  LOWER: ['quads', 'hamstrings', 'glutes', 'calves', 'core'],
+  'FULL BODY': [...MUSCLE_GROUPS],
+} as const satisfies Record<string, readonly MuscleGroup[]>;
+
+/**
  * Components subdivide a group only where programming actually differs
  * (CLAUDE.md §6.5 — taxonomy must earn its keep in fatigue accounting).
  * Shoulders/chest/back train regionally (a press leaves side/rear delts

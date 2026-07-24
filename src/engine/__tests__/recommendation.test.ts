@@ -9,7 +9,7 @@ import {
   contributionsForExercise,
   rankExercisesForSession,
 } from '@/engine/recommendation';
-import type { Exercise, GymProfile } from '@/domain/types';
+import { SPLIT_PRESETS, type Exercise, type GymProfile } from '@/domain/types';
 
 function exercise(id: string): Exercise {
   const found = EXERCISE_CATALOG.find((entry) => entry.id === id);
@@ -57,7 +57,7 @@ describe('rankExercisesForSession — shoulders at the commercial gym', () => {
   const options = {
     catalog: EXERCISE_CATALOG,
     profile: profile('commercial'),
-    targetGroup: 'shoulders' as const,
+    targetGroups: ['shoulders'] as const,
   };
 
   it('fresh session: compounds lead while fresh, isolation follows', () => {
@@ -107,12 +107,29 @@ describe('rankExercisesForSession — equipment filtering', () => {
       rankExercisesForSession({
         catalog: EXERCISE_CATALOG,
         profile: profile('home'),
-        targetGroup: 'shoulders',
+        targetGroups: ['shoulders'],
         completedExercises: [],
       }),
     );
     expect(ids).not.toContain('face-pull');
     expect(ids).toContain('lateral-raise');
+  });
+});
+
+describe('rankExercisesForSession — split presets (multi-group focus)', () => {
+  it('push day ranks chest, shoulder, and triceps movements together', () => {
+    const ids = rankIds(
+      rankExercisesForSession({
+        catalog: EXERCISE_CATALOG,
+        profile: profile('commercial'),
+        targetGroups: SPLIT_PRESETS.PUSH,
+        completedExercises: [],
+      }),
+    );
+    expect(ids).toContain('barbell-bench-press');
+    expect(ids).toContain('overhead-press');
+    expect(ids).toContain('triceps-pushdown');
+    expect(ids).not.toContain('barbell-back-squat');
   });
 });
 

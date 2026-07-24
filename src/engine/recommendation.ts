@@ -106,12 +106,13 @@ export function accumulateCoverage(completed: readonly Exercise[]): ComponentCov
 export function rankExercisesForSession(options: {
   catalog: readonly Exercise[];
   profile: GymProfile;
-  targetGroup: MuscleGroup;
+  /** One muscle (bro split) or several (PPL / upper-lower presets). */
+  targetGroups: readonly MuscleGroup[];
   completedExercises: readonly Exercise[];
 }): RankedExercise[] {
-  const { catalog, profile, targetGroup, completedExercises } = options;
+  const { catalog, profile, targetGroups, completedExercises } = options;
   const coverage = accumulateCoverage(completedExercises);
-  const targetComponents = MUSCLE_COMPONENTS_BY_GROUP[targetGroup];
+  const targetComponents = targetGroups.flatMap((group) => MUSCLE_COMPONENTS_BY_GROUP[group]);
   const completedIds = new Set(completedExercises.map((exercise) => exercise.id));
   // 1 fresh → 0 as work accumulates (RECOMMENDATION_FRESHNESS_DECAY_PER_EXERCISE).
   const freshness = Math.max(
