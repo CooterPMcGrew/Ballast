@@ -10,34 +10,56 @@ const validExercise = {
 };
 
 describe('validateExercises', () => {
+  // Bad entries are dropped loudly, never thrown (demo feedback: a typo in
+  // one entry must not brick the app). Silence the expected noise.
+  let consoleError: jest.SpyInstance;
+  beforeEach(() => {
+    consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+  });
+  afterEach(() => consoleError.mockRestore());
+
   it('accepts a valid entry', () => {
     expect(validateExercises([validExercise])[0]?.id).toBe('test-move');
   });
 
-  it('names the entry and field on failure', () => {
-    expect(() => validateExercises([{ ...validExercise, equipment: ['flux-capacitor'] }])).toThrow(
+  function expectDropped(badEntry: unknown, reason: RegExp) {
+    const result = validateExercises([badEntry, { ...validExercise, id: 'survivor' }]);
+    expect(result.map((exercise) => exercise.id)).toEqual(['survivor']);
+    expect(consoleError).toHaveBeenCalledWith(expect.stringMatching(reason));
+  }
+
+  it('drops an entry with a bad field, names it, keeps the rest', () => {
+    expectDropped(
+      { ...validExercise, equipment: ['flux-capacitor'] },
       /exercises\.json\[0\].*equipment.*flux-capacitor/,
     );
   });
 
-  it('rejects duplicate ids', () => {
-    expect(() => validateExercises([validExercise, validExercise])).toThrow(/duplicate id/);
+  it('drops an entry missing a required attribute, keeps the rest', () => {
+    const { name: _dropped, ...missingName } = validExercise;
+    expectDropped(missingName, /name/);
   });
 
-  it('rejects non-kebab-case ids', () => {
-    expect(() => validateExercises([{ ...validExercise, id: 'Test Move' }])).toThrow(/kebab-case/);
+  it('drops duplicate ids, keeps the first', () => {
+    const result = validateExercises([validExercise, validExercise]);
+    expect(result).toHaveLength(1);
+    expect(consoleError).toHaveBeenCalledWith(expect.stringMatching(/duplicate id/));
   });
 
-  it('rejects empty primaryMuscles', () => {
-    expect(() => validateExercises([{ ...validExercise, primaryMuscles: [] }])).toThrow(
-      /primaryMuscles/,
-    );
+  it('drops non-kebab-case ids', () => {
+    expectDropped({ ...validExercise, id: 'Test Move' }, /kebab-case/);
   });
 
-  it('rejects a muscle appearing in two roles', () => {
-    expect(() =>
-      validateExercises([{ ...validExercise, secondaryMuscles: ['chest'] }]),
-    ).toThrow(/only one role/);
+  it('drops empty primaryMuscles', () => {
+    expectDropped({ ...validExercise, primaryMuscles: [] }, /primaryMuscles/);
+  });
+
+  it('drops a muscle appearing in two roles', () => {
+    expectDropped({ ...validExercise, secondaryMuscles: ['chest'] }, /only one role/);
+  });
+
+  it('still throws when nothing valid survives — an unusable catalog is fatal', () => {
+    expect(() => validateExercises([{ id: 'broken' }])).toThrow(/no valid entries/);
   });
 });
 

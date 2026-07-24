@@ -22,13 +22,37 @@ import {
 const CONTRIBUTION_SUM_MIN = 0.95;
 const CONTRIBUTION_SUM_MAX = 1.05;
 
+/**
+ * Resilient by request (demo feedback): a malformed entry is DROPPED with a
+ * loud console.error naming entry and field — one typo in a hand-edited
+ * file must never brick the app. Still throws when the file itself is
+ * unusable (not an array / nothing valid survived).
+ */
 export function validateExercises(raw: unknown): Exercise[] {
   if (!Array.isArray(raw)) {
     throw new Error('exercises.json: top level must be an array');
   }
   const seenIds = new Set<string>();
+  const valid: Exercise[] = [];
+  for (const [index, entry] of raw.entries()) {
+    try {
+      valid.push(parseExerciseEntry(entry, index, seenIds));
+    } catch (error) {
+      console.error(`catalog: entry dropped — ${(error as Error).message}`);
+    }
+  }
+  if (valid.length === 0) {
+    throw new Error('exercises.json: no valid entries — the catalog is unusable');
+  }
+  return valid;
+}
 
-  return raw.map((entry, index) => {
+function parseExerciseEntry(
+  entry: unknown,
+  index: number,
+  seenIds: Set<string>,
+): Exercise {
+  {
     const where = `exercises.json[${index}]`;
     const record = asRecord(entry, where);
 
@@ -76,7 +100,7 @@ export function validateExercises(raw: unknown): Exercise[] {
       muscleContributions,
       progressionOverride,
     };
-  });
+  }
 }
 
 function optionalContributions(
