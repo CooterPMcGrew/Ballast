@@ -63,6 +63,10 @@ export default function SessionScreen() {
   const customGym = useAppStore((state) => state.customGym);
   const historyByExercise = useAppStore((state) => state.sessionHistoryByExercise);
   const unitPreference = useAppStore((state) => state.unitPreference);
+  const supersetArmed = useAppStore((state) => state.supersetArmed);
+  const supersetPendingId = useAppStore((state) => state.supersetPendingId);
+  const toggleSupersetArm = useAppStore((state) => state.toggleSupersetArm);
+  const pickSupersetExercise = useAppStore((state) => state.pickSupersetExercise);
   const activeSession = useAppStore((state) => state.activeSession);
   const startSession = useAppStore((state) => state.startSession);
   const endSession = useAppStore((state) => state.endSession);
@@ -90,6 +94,18 @@ export default function SessionScreen() {
     endSession();
     // replace, not push: the ended session must not sit on the back stack.
     router.replace('/summary');
+  };
+
+  // Armed superset: taps collect the pair instead of navigating.
+  const onExercisePress = (exerciseId: string) => {
+    if (supersetArmed) {
+      if (pickSupersetExercise(exerciseId) === 'started') {
+        const firstId = useAppStore.getState().activeExercise?.exerciseId ?? exerciseId;
+        router.push({ pathname: '/workout', params: { exerciseId: firstId } });
+      }
+      return;
+    }
+    router.push({ pathname: '/workout', params: { exerciseId } });
   };
 
   if (targetGroups.length === 0) {
@@ -242,7 +258,22 @@ export default function SessionScreen() {
           })}
         </View>
 
-        <Text style={styles.sectionTitle}>UP NEXT</Text>
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>UP NEXT</Text>
+          <Pressable
+            testID="superset-arm"
+            onPress={toggleSupersetArm}
+            style={[styles.supersetChip, supersetArmed && styles.supersetChipArmed]}
+          >
+            <Text style={[styles.supersetChipLabel, supersetArmed && styles.supersetChipLabelArmed]}>
+              {supersetArmed
+                ? supersetPendingId
+                  ? 'PICK 2ND EXERCISE'
+                  : 'PICK 2 EXERCISES'
+                : 'SUPERSET'}
+            </Text>
+          </Pressable>
+        </View>
         {ranked.length === 0 && (
           <Text style={styles.rationale}>
             Nothing available for this group at this gym — switch profiles on Home.
@@ -254,10 +285,8 @@ export default function SessionScreen() {
             <Pressable
               key={exercise.id}
               testID={`recommend-${exercise.id}`}
-              onPress={() =>
-                router.push({ pathname: '/workout', params: { exerciseId: exercise.id } })
-              }
-              style={styles.row}
+              onPress={() => onExercisePress(exercise.id)}
+              style={[styles.row, exercise.id === supersetPendingId && styles.rowPending]}
             >
               <Text style={styles.rowName}>{exercise.name}</Text>
               <Text style={styles.rowRationale}>{rationale}</Text>
@@ -275,10 +304,8 @@ export default function SessionScreen() {
                 <Pressable
                   key={exercise.id}
                   testID={`mix-${exercise.id}`}
-                  onPress={() =>
-                    router.push({ pathname: '/workout', params: { exerciseId: exercise.id } })
-                  }
-                  style={styles.row}
+                  onPress={() => onExercisePress(exercise.id)}
+                  style={[styles.row, exercise.id === supersetPendingId && styles.rowPending]}
                 >
                   <Text style={styles.rowName}>{exercise.name}</Text>
                   <Text style={styles.rowMuscles}>{exercise.primaryMuscles.join(' · ')}</Text>
@@ -467,6 +494,36 @@ const styles = StyleSheet.create({
   },
   groupPctLit: {
     color: palette.schematicCyan,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  supersetChip: {
+    minHeight: touchTarget.secondaryMinPt,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: palette.slate,
+    borderRadius: 4,
+    paddingHorizontal: spacing.sm,
+  },
+  supersetChipArmed: {
+    borderColor: palette.schematicCyan,
+  },
+  supersetChipLabel: {
+    color: palette.slate,
+    fontFamily: fontFamily.display,
+    fontSize: fontSize.caption,
+    letterSpacing: 1,
+  },
+  supersetChipLabelArmed: {
+    color: palette.schematicCyan,
+  },
+  rowPending: {
+    borderLeftWidth: 3,
+    borderLeftColor: palette.schematicCyan,
+    paddingLeft: spacing.sm,
   },
   // Recommendation rows are the session's primary action: 64pt floor.
   row: {

@@ -65,6 +65,8 @@ export default function WorkoutScreen() {
   const completeSet = useAppStore((state) => state.completeSet);
   const undoLastSet = useAppStore((state) => state.undoLastSet);
   const abandonExercise = useAppStore((state) => state.abandonExercise);
+  const pausedExercise = useAppStore((state) => state.pausedExercise);
+  const swapSupersetPartner = useAppStore((state) => state.swapSupersetPartner);
 
   const [phase, setPhase] = useState<WorkoutPhase>('working');
   const [padTarget, setPadTarget] = useState<'load' | 'reps' | null>(null);
@@ -79,8 +81,14 @@ export default function WorkoutScreen() {
   const lastResult = history?.[history.length - 1];
 
   useEffect(() => {
-    if (exercise && (!active || active.exerciseId !== exercise.id)) {
+    if (!exercise) return;
+    if (!active) {
       startExercise(exercise.id);
+    } else if (active.exerciseId !== exercise.id) {
+      // The store leads during superset swaps and hand-offs; the URL follows.
+      // (Also means navigating to another exercise mid-set can't silently
+      // abandon work — CANCEL EXERCISE is the explicit path out.)
+      router.setParams({ exerciseId: active.exerciseId });
     }
   }, [exercise, active, startExercise]);
 
@@ -120,19 +128,43 @@ export default function WorkoutScreen() {
     setPhase('feedback');
   };
 
-  const onFeedback = (feedback: SetFeedback) => {
-    if (Date.now() < matrixArmedAtMs.current) {
-      return; // phantom tap from the phase switch — see MATRIX_ARM_DELAY_MS
-    }
-    completeSet(feedback); // clears activeExercise on the final set
-    if (isLastSet) {
-      router.back();
-      return;
-    }
+  const startRest = () => {
     const restSec = restSecForExercise(exercise);
     restEndsAtMs.current = Date.now() + restSec * 1000;
     setRestRemainingSec(restSec);
     setPhase('resting');
+  };
+
+  const onFeedback = (feedback: SetFeedback) => {
+    if (Date.now() < matrixArmedAtMs.current) {
+      return; // phantom tap from the phase switch — see MATRIX_ARM_DELAY_MS
+    }
+    const finishedLeg = active.supersetOrder;
+    completeSet(feedback); // on the final set: folds, partner takes over
+    const nextActive = useAppStore.getState().activeExercise;
+
+    if (isLastSet) {
+      if (!nextActive) {
+        router.back();
+        return;
+      }
+      setPhase('working'); // partner continues (URL syncs via the effect)
+      return;
+    }
+
+    if (useAppStore.getState().pausedExercise) {
+      // Superset: alternate immediately; rest only after the second leg,
+      // so the rest period covers the PAIR, not each half.
+      swapSupersetPartner();
+      if (finishedLeg === 1) {
+        startRest();
+      } else {
+        setPhase('working');
+      }
+      return;
+    }
+
+    startRest();
   };
 
   const onCancel = () => {
@@ -153,6 +185,15 @@ export default function WorkoutScreen() {
           SET {setNumber}/{active.totalSets}
         </Text>
       </View>
+
+      {active.supersetOrder !== undefined && (
+        <Text style={styles.supersetTag}>
+          SUPERSET {active.supersetOrder === 0 ? 'A' : 'B'}
+          {pausedExercise
+            ? ` — WITH ${getExerciseById(pausedExercise.exerciseId)?.name.toUpperCase() ?? '?'}`
+            : ''}
+        </Text>
+      )}
 
       <View style={styles.prescription}>
         {/* Tap a numeral to type it — big-key pad, never the system keyboard. */}
@@ -343,6 +384,13 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.mono,
     fontSize: fontSize.label,
     marginLeft: spacing.sm,
+  },
+  supersetTag: {
+    color: palette.copper,
+    fontFamily: fontFamily.mono,
+    fontSize: fontSize.caption,
+    letterSpacing: 1,
+    marginTop: spacing.xs,
   },
   prescription: {
     alignItems: 'center',

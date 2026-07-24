@@ -37,6 +37,11 @@ export interface ActiveExercise {
   rationale: string;
   setFeedbacks: SetFeedback[];
   totalSets: number;
+  /**
+   * Superset leg: 0 = first of the pair (no rest after its set), 1 = second
+   * (rest fires after it, covering the pair). Absent = not supersetting.
+   */
+  supersetOrder?: 0 | 1;
 }
 
 /**
@@ -85,6 +90,11 @@ interface AppState {
    *  engine reads the result fields; the recency figure reads the clock. */
   sessionHistoryByExercise: Record<string, TimestampedSessionResult[]>;
   activeExercise: ActiveExercise | null;
+  /** The other half of a superset pair, waiting while its partner works. */
+  pausedExercise: ActiveExercise | null;
+  /** "The next two exercises I pick pair up" (session-page toggle). */
+  supersetArmed: boolean;
+  supersetPendingId: string | null;
   activeSession: ActiveSession | null;
   /** Set by endSession(); the summary screen reads it. Replaced each session. */
   lastSessionSummary: SessionSummary | null;
@@ -115,6 +125,14 @@ interface AppState {
   endSession: () => void;
   /** Prescribe from history, or seed on first encounter (PRD D2). */
   startExercise: (exerciseId: string) => void;
+  toggleSupersetArm: () => void;
+  /**
+   * While armed: first pick is held pending, second begins the pair.
+   * Returns what happened so the UI knows whether to navigate.
+   */
+  pickSupersetExercise: (exerciseId: string) => 'pending' | 'started' | 'error';
+  /** Alternate the pair — caller decides when (after each completed set). */
+  swapSupersetPartner: () => void;
   /** Stepper adjustments (zero-precision default path). */
   adjustLoad: (deltaKg: number) => void;
   adjustReps: (delta: number) => void;
@@ -136,11 +154,42 @@ interface AppState {
   abandonExercise: () => void;
 }
 
-export const useAppStore = create<AppState>((set, get) => ({
+export const useAppStore = create<AppState>((set, get) => {
+  /** Prescription for one exercise: from history, or seeded (PRD D2). */
+  const buildActiveExercise = (
+    exerciseId: string,
+    supersetOrder?: 0 | 1,
+  ): ActiveExercise | null => {
+    const exercise = getExerciseById(exerciseId);
+    if (!exercise) {
+      console.error(`buildActiveExercise: unknown exercise id "${exerciseId}"`);
+      return null;
+    }
+    const window = progressionWindowForExercise(exercise);
+    const history = get().sessionHistoryByExercise[exerciseId] ?? [];
+    const plan =
+      history.length > 0
+        ? prescribeNextSession(window, history)
+        : seedPlan(window, seedLoadKgForExercise(exercise));
+    return {
+      exerciseId,
+      loadKg: plan.loadKg,
+      targetReps: plan.targetReps,
+      rationale: plan.rationale,
+      setFeedbacks: [],
+      totalSets: SETS_PER_EXERCISE_DEFAULT,
+      supersetOrder,
+    };
+  };
+
+  return {
   hydrated: false,
   selectedGymProfileId: DEFAULT_GYM_PROFILES[0]!.id,
   sessionHistoryByExercise: {},
   activeExercise: null,
+  pausedExercise: null,
+  supersetArmed: false,
+  supersetPendingId: null,
   activeSession: null,
   lastSessionSummary: null,
   unitPreference: 'kg',
@@ -237,6 +286,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     const durationMs = Math.max(0, Date.now() - Date.parse(session.startedAtIso));
     set({
       activeSession: null,
+      activeExercise: null,
+      pausedExercise: null,
+      supersetArmed: false,
+      supersetPendingId: null,
       lastSessionSummary: {
         exerciseNames: session.completedExerciseIds
           .map((id) => getExerciseById(id)?.name)
@@ -249,29 +302,42 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   startExercise: (exerciseId) => {
-    const exercise = getExerciseById(exerciseId);
-    if (!exercise) {
-      // A stale route param, not a user error — refuse loudly in dev.
-      console.error(`startExercise: unknown exercise id "${exerciseId}"`);
-      return;
+    const built = buildActiveExercise(exerciseId);
+    if (built) {
+      set({ activeExercise: built, pausedExercise: null });
     }
-    const window = progressionWindowForExercise(exercise);
-    const history = get().sessionHistoryByExercise[exerciseId] ?? [];
-    const plan =
-      history.length > 0
-        ? prescribeNextSession(window, history)
-        : seedPlan(window, seedLoadKgForExercise(exercise));
-    set({
-      activeExercise: {
-        exerciseId,
-        loadKg: plan.loadKg,
-        targetReps: plan.targetReps,
-        rationale: plan.rationale,
-        setFeedbacks: [],
-        totalSets: SETS_PER_EXERCISE_DEFAULT,
-      },
-    });
   },
+
+  toggleSupersetArm: () =>
+    set((state) => ({ supersetArmed: !state.supersetArmed, supersetPendingId: null })),
+
+  pickSupersetExercise: (exerciseId) => {
+    const pendingId = get().supersetPendingId;
+    if (!pendingId) {
+      set({ supersetPendingId: exerciseId });
+      return 'pending';
+    }
+    const first = buildActiveExercise(pendingId, 0);
+    const second = buildActiveExercise(exerciseId, 1);
+    if (!first || !second) {
+      set({ supersetArmed: false, supersetPendingId: null });
+      return 'error';
+    }
+    set({
+      activeExercise: first,
+      pausedExercise: second,
+      supersetArmed: false,
+      supersetPendingId: null,
+    });
+    return 'started';
+  },
+
+  swapSupersetPartner: () =>
+    set((state) =>
+      state.pausedExercise
+        ? { activeExercise: state.pausedExercise, pausedExercise: state.activeExercise }
+        : state,
+    ),
 
   adjustLoad: (deltaKg) =>
     set((state) => {
@@ -347,7 +413,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       completedAtIso: new Date().toISOString(),
     };
     set((state) => ({
-      activeExercise: null,
+      // A folded exercise hands the screen to its superset partner, if any.
+      activeExercise: state.pausedExercise,
+      pausedExercise: null,
       sessionHistoryByExercise: {
         ...state.sessionHistoryByExercise,
         [active.exerciseId]: [
@@ -394,8 +462,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       };
     }),
 
-  abandonExercise: () => set({ activeExercise: null }),
-}));
+  // Cancel abandons the CURRENT half only; a superset partner takes over.
+  abandonExercise: () =>
+    set((state) => ({ activeExercise: state.pausedExercise, pausedExercise: null })),
+  };
+});
 
 /**
  * Resolve the active profile, including the user-built one from Settings.
