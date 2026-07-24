@@ -130,11 +130,18 @@ export const DEFAULT_BODY_MASS_KG = 80;
 /** Exact by definition: 1 kcal = 4.184 kJ. */
 export const KJ_PER_KCAL = 4.184;
 
-/** Default rest prescription per class; user-adjustable per exercise later. */
-export const REST_DEFAULT_SEC_BY_CLASS: Record<ExerciseClass, number> = {
-  compound: 180,
-  isolation: 90,
-};
+/**
+ * Rest timer (demo feedback): rest = REST_TIMER_BASE_SEC × the exercise's
+ * restRatio (heavy compounds ship ratios like 3 → 180 s; a pump isolation
+ * might carry 0.8 → 48 s; missing ratio = 1 → 60 s). Always bypassable —
+ * the timer is a suggestion, not a gate.
+ */
+export const REST_TIMER_BASE_SEC = 60;
+export const REST_RATIO_DEFAULT = 1;
+
+export function restSecForExercise(exercise: Exercise): number {
+  return Math.round(REST_TIMER_BASE_SEC * (exercise.restRatio ?? REST_RATIO_DEFAULT));
+}
 
 /** Working sets per exercise until per-program set schemes exist. */
 export const SETS_PER_EXERCISE_DEFAULT = 3;

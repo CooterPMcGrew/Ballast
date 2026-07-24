@@ -88,6 +88,7 @@ function parseExerciseEntry(
 
     const muscleContributions = optionalContributions(record, `${where} ("${id}")`);
     const progressionOverride = optionalProgressionOverride(record, `${where} ("${id}")`);
+    const restRatio = optionalRestRatio(record, `${where} ("${id}")`);
 
     return {
       id,
@@ -99,8 +100,21 @@ function parseExerciseEntry(
       tertiaryMuscles,
       muscleContributions,
       progressionOverride,
+      restRatio,
     };
   }
+}
+
+/** Sanity bounds: sub-zero is nonsense, >5 (five minutes) is a typo. */
+const REST_RATIO_MAX = 5;
+
+function optionalRestRatio(record: Record<string, unknown>, where: string): number | undefined {
+  const value = record['restRatio'];
+  if (value === undefined) return undefined;
+  if (typeof value !== 'number' || !(value > 0) || value > REST_RATIO_MAX) {
+    throw new Error(`${where}: "restRatio" must be a number in (0, ${REST_RATIO_MAX}]`);
+  }
+  return value;
 }
 
 function optionalContributions(

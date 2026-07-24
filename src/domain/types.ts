@@ -124,6 +124,11 @@ export interface Exercise {
    * jumps, or a stubborn movement given a wider rep range.
    */
   progressionOverride?: ProgressionOverride;
+  /**
+   * Rest multiplier: rest = REST_TIMER_BASE_SEC × restRatio (1 = 60 s,
+   * 0.8 = 48 s). Optional; missing = 1. Big compounds deserve 2–3.
+   */
+  restRatio?: number;
 }
 
 /** Partial override of a ProgressionWindow; unset fields fall back to class defaults. */

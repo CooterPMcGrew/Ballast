@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { restSecForExercise } from '@/config/progressionConfig';
 import { getExerciseById } from '@/data/exerciseCatalog';
 import type { SetFeedback } from '@/domain/types';
 import { formatLoad, unitSuffix } from '@/domain/units';
@@ -24,6 +25,17 @@ import { fontFamily, fontSize, palette, spacing, touchTarget } from '@/theme/tok
  */
 const MATRIX_ARM_DELAY_MS = 300;
 
+/** UI check cadence for the rest countdown; the clock itself is wall time. */
+const REST_TICK_MS = 250;
+
+type WorkoutPhase = 'working' | 'feedback' | 'resting';
+
+function formatCountdown(totalSec: number): string {
+  const minutes = Math.floor(totalSec / 60);
+  const seconds = totalSec % 60;
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
 /**
  * Active workout — the core loop (PRD §2). Two phases per set:
  *   working  → steppers + one big COMPLETE AS SUGGESTED
@@ -43,7 +55,9 @@ export default function WorkoutScreen() {
   const completeSet = useAppStore((state) => state.completeSet);
   const abandonExercise = useAppStore((state) => state.abandonExercise);
 
-  const [awaitingFeedback, setAwaitingFeedback] = useState(false);
+  const [phase, setPhase] = useState<WorkoutPhase>('working');
+  const [restRemainingSec, setRestRemainingSec] = useState(0);
+  const restEndsAtMs = useRef(0);
   const matrixArmedAtMs = useRef(0);
   const exercise = exerciseId ? getExerciseById(exerciseId) : undefined;
   const history = useAppStore((state) =>
@@ -57,6 +71,21 @@ export default function WorkoutScreen() {
       startExercise(exercise.id);
     }
   }, [exercise, active, startExercise]);
+
+  // Rest countdown against wall time — a background tab or slow frame can't
+  // stretch the rest period.
+  useEffect(() => {
+    if (phase !== 'resting') return;
+    const tick = setInterval(() => {
+      const left = Math.ceil((restEndsAtMs.current - Date.now()) / 1000);
+      if (left <= 0) {
+        setPhase('working');
+      } else {
+        setRestRemainingSec(left);
+      }
+    }, REST_TICK_MS);
+    return () => clearInterval(tick);
+  }, [phase]);
 
   if (!exercise) {
     return (
@@ -76,18 +105,22 @@ export default function WorkoutScreen() {
 
   const onCompleteSet = () => {
     matrixArmedAtMs.current = Date.now() + MATRIX_ARM_DELAY_MS;
-    setAwaitingFeedback(true);
+    setPhase('feedback');
   };
 
   const onFeedback = (feedback: SetFeedback) => {
     if (Date.now() < matrixArmedAtMs.current) {
       return; // phantom tap from the phase switch — see MATRIX_ARM_DELAY_MS
     }
-    setAwaitingFeedback(false);
     completeSet(feedback); // clears activeExercise on the final set
     if (isLastSet) {
       router.back();
+      return;
     }
+    const restSec = restSecForExercise(exercise);
+    restEndsAtMs.current = Date.now() + restSec * 1000;
+    setRestRemainingSec(restSec);
+    setPhase('resting');
   };
 
   const onCancel = () => {
@@ -126,7 +159,7 @@ export default function WorkoutScreen() {
       </View>
 
       <View style={styles.controls}>
-        {awaitingFeedback ? (
+        {phase === 'feedback' ? (
           <>
             <Text style={styles.prompt}>HOW WAS THAT SET?</Text>
             <View style={styles.buttonStack}>
@@ -144,6 +177,18 @@ export default function WorkoutScreen() {
                 label="GRIND / FORM BROKE"
                 color={palette.hazard}
                 onPress={() => onFeedback('grind')}
+              />
+            </View>
+          </>
+        ) : phase === 'resting' ? (
+          <>
+            <Text style={styles.prompt}>REST</Text>
+            <Text style={styles.restCountdown}>{formatCountdown(restRemainingSec)}</Text>
+            <View style={styles.buttonStack}>
+              <BigButton
+                label="SKIP REST"
+                color={palette.slate}
+                onPress={() => setPhase('working')}
               />
             </View>
           </>
@@ -322,6 +367,13 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.display,
     fontSize: fontSize.caption,
     letterSpacing: 2,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+  },
+  restCountdown: {
+    color: palette.schematicCyan,
+    fontFamily: fontFamily.monoBold,
+    fontSize: fontSize.numeralLarge,
     textAlign: 'center',
     marginBottom: spacing.sm,
   },
