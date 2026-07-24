@@ -48,3 +48,7 @@ desktop.ini
 
 # Local Claude settings
 .claude/settings.local.json
+
+# Local assistant tooling — stays on this machine only
+CLAUDE.md
+.claude/
