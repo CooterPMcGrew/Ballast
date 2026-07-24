@@ -15,7 +15,14 @@ const FEEDBACK_LABELS: Record<SetFeedback, string> = {
   justRight: 'JUST RIGHT',
   grind: 'GRIND',
 };
-import { fontFamily, fontSize, palette, spacing, touchTarget } from '@/theme/tokens';
+import {
+  feedbackColor,
+  fontFamily,
+  fontSize,
+  palette,
+  spacing,
+  touchTarget,
+} from '@/theme/tokens';
 
 /**
  * The matrix renders where COMPLETE AS SUGGESTED just was, so an accidental
@@ -53,6 +60,7 @@ export default function WorkoutScreen() {
   const adjustReps = useAppStore((state) => state.adjustReps);
   const adjustSets = useAppStore((state) => state.adjustSets);
   const completeSet = useAppStore((state) => state.completeSet);
+  const undoLastSet = useAppStore((state) => state.undoLastSet);
   const abandonExercise = useAppStore((state) => state.abandonExercise);
 
   const [phase, setPhase] = useState<WorkoutPhase>('working');
@@ -155,6 +163,21 @@ export default function WorkoutScreen() {
             {unitSuffix(unitPreference)} × {lastResult.repsAchieved} ·{' '}
             {FEEDBACK_LABELS[lastResult.feedback]}
           </Text>
+        )}
+
+        {/* Completed sets stack, colored by how each felt; UNDO pops the top. */}
+        {active.setFeedbacks.length > 0 && (
+          <View style={styles.setStackRow}>
+            {active.setFeedbacks.map((feedback, index) => (
+              <View
+                key={index}
+                style={[styles.setBlock, { backgroundColor: feedbackColor[feedback] }]}
+              />
+            ))}
+            <Pressable testID="undo-set" onPress={undoLastSet} style={styles.undoButton}>
+              <Text style={styles.undoLabel}>UNDO SET</Text>
+            </Pressable>
+          </View>
         )}
       </View>
 
@@ -328,6 +351,29 @@ const styles = StyleSheet.create({
     fontSize: fontSize.caption,
     marginTop: spacing.xs,
     textAlign: 'center',
+  },
+  setStackRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginTop: spacing.md,
+  },
+  setBlock: {
+    width: 18,
+    height: 18,
+    borderRadius: 2,
+  },
+  undoButton: {
+    minHeight: touchTarget.secondaryMinPt,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+    marginLeft: spacing.sm,
+  },
+  undoLabel: {
+    color: palette.slate,
+    fontFamily: fontFamily.display,
+    fontSize: fontSize.caption,
+    letterSpacing: 1,
   },
   // Everything interactive sits below here — lower two-thirds, one thumb.
   controls: {

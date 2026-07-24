@@ -49,11 +49,22 @@ export interface ActiveExercise {
  * one workout; a persisted session row is the root fix and arrives with
  * workout history views).
  */
+/** One completed set, as performed — the session's chronological record. */
+export interface SetLogEntry {
+  exerciseId: string;
+  loadKg: number;
+  reps: number;
+  feedback: SetFeedback;
+  completedAtIso: string;
+}
+
 export interface ActiveSession {
   muscleGroup: MuscleGroup;
   completedExerciseIds: string[];
   startedAtIso: string;
   setsCompleted: number;
+  /** Every set this session, in order — the "stacking blocks" log. */
+  setLog: SetLogEntry[];
 }
 
 /** Snapshot built by endSession() for the summary screen. In-memory only. */
@@ -108,6 +119,11 @@ interface AppState {
   adjustReps: (delta: number) => void;
   /** Change remaining sets mid-exercise; floor = the set being done now. */
   adjustSets: (delta: number) => void;
+  /**
+   * Remove the most recent completed set (phantom tap, wrong button).
+   * Mid-exercise only — a folded exercise is history, not a draft.
+   */
+  undoLastSet: () => void;
   /**
    * One Post-Set Matrix tap. On the final set, collapses the session
    * (worst set governs) into history and clears the active exercise.
@@ -204,6 +220,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             completedExerciseIds: [],
             startedAtIso: new Date().toISOString(),
             setsCompleted: 0,
+            setLog: [],
           },
     })),
 
@@ -285,11 +302,18 @@ export const useAppStore = create<AppState>((set, get) => ({
       return;
     }
     const setFeedbacks = [...active.setFeedbacks, feedback];
+    const logEntry: SetLogEntry = {
+      exerciseId: active.exerciseId,
+      loadKg: active.loadKg,
+      reps: active.targetReps,
+      feedback,
+      completedAtIso: new Date().toISOString(),
+    };
 
     if (setFeedbacks.length < active.totalSets) {
       set((state) => ({
         activeExercise: { ...active, setFeedbacks },
-        activeSession: bumpSetCount(state.activeSession),
+        activeSession: logSet(state.activeSession, logEntry),
       }));
       return;
     }
@@ -312,7 +336,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         ],
       },
       // Feed session coverage so the recommender re-ranks around what's done.
-      activeSession: bumpSetCount(
+      activeSession: logSet(
         state.activeSession && {
           ...state.activeSession,
           completedExerciseIds: state.activeSession.completedExerciseIds.includes(
@@ -321,12 +345,34 @@ export const useAppStore = create<AppState>((set, get) => ({
             ? state.activeSession.completedExerciseIds
             : [...state.activeSession.completedExerciseIds, active.exerciseId],
         },
+        logEntry,
       ),
     }));
     persistence
       .appendSession({ exerciseId: active.exerciseId, ...result })
       .catch((error) => console.error('persistence: session save failed', error));
   },
+
+  undoLastSet: () =>
+    set((state) => {
+      const active = state.activeExercise;
+      if (!active || active.setFeedbacks.length === 0) {
+        return state;
+      }
+      // The log's last entry is necessarily this exercise's set — logging
+      // only happens through completeSet on the active exercise.
+      const session = state.activeSession;
+      return {
+        activeExercise: { ...active, setFeedbacks: active.setFeedbacks.slice(0, -1) },
+        activeSession: session
+          ? {
+              ...session,
+              setsCompleted: Math.max(0, session.setsCompleted - 1),
+              setLog: session.setLog.slice(0, -1),
+            }
+          : null,
+      };
+    }),
 
   abandonExercise: () => set({ activeExercise: null }),
 }));
@@ -366,7 +412,13 @@ function round2(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
-/** Every Post-Set tap is one completed set, whatever exercise it belongs to. */
-function bumpSetCount(session: ActiveSession | null): ActiveSession | null {
-  return session ? { ...session, setsCompleted: session.setsCompleted + 1 } : null;
+/** Every Post-Set tap is one completed set, appended to the session log. */
+function logSet(session: ActiveSession | null, entry: SetLogEntry): ActiveSession | null {
+  return session
+    ? {
+        ...session,
+        setsCompleted: session.setsCompleted + 1,
+        setLog: [...session.setLog, entry],
+      }
+    : null;
 }

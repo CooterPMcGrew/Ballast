@@ -61,3 +61,14 @@ export const spacing = {
   lg: 24,
   xl: 32,
 } as const;
+
+/**
+ * Post-Set Matrix semantics carried into any set visualization (blocks,
+ * log rows): the same three colors as the buttons that recorded them.
+ * Hazard here is semantic, not decorative — a grind block IS a warning.
+ */
+export const feedbackColor = {
+  easy: palette.schematicCyan,
+  justRight: palette.copper,
+  grind: palette.hazard,
+} as const;

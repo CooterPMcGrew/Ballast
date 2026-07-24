@@ -24,7 +24,14 @@ import {
 } from '@/engine/recommendation';
 import type { TimestampedSessionResult } from '@/persistence/types';
 import { getProfileById, useAppStore } from '@/store/appStore';
-import { fontFamily, fontSize, palette, spacing, touchTarget } from '@/theme/tokens';
+import {
+  feedbackColor,
+  fontFamily,
+  fontSize,
+  palette,
+  spacing,
+  touchTarget,
+} from '@/theme/tokens';
 
 const MS_PER_DAY = 86_400_000;
 
@@ -254,6 +261,24 @@ export default function SessionScreen() {
           </>
         )}
 
+        {(activeSession?.setLog.length ?? 0) > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>SET LOG</Text>
+            {activeSession?.setLog.map((entry, index) => (
+              <View
+                key={`${entry.completedAtIso}-${index}`}
+                style={[styles.logRow, { borderLeftColor: feedbackColor[entry.feedback] }]}
+              >
+                <Text style={styles.logText}>
+                  {index + 1}. {getExerciseById(entry.exerciseId)?.name ?? entry.exerciseId} —{' '}
+                  {formatLoad(entry.loadKg, unitPreference)} {unitSuffix(unitPreference)} ×{' '}
+                  {entry.reps}
+                </Text>
+              </View>
+            ))}
+          </>
+        )}
+
         {completedExercises.length > 0 && (
           <>
             <Text style={styles.sectionTitle}>DONE TODAY</Text>
@@ -445,6 +470,19 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.mono,
     fontSize: fontSize.caption,
     marginTop: 2,
+  },
+  // "Stacking blocks": each set is a row whose left edge carries its
+  // Post-Set color — the session reads as a stratigraphy of effort.
+  logRow: {
+    borderLeftWidth: 3,
+    paddingLeft: spacing.sm,
+    paddingVertical: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  logText: {
+    color: palette.textPrimary,
+    fontFamily: fontFamily.mono,
+    fontSize: fontSize.caption,
   },
   doneRow: {
     flexDirection: 'row',
