@@ -90,8 +90,10 @@ export function NumberPad({
             </Pressable>
             <Pressable
               testID="pad-set"
-              disabled={!submittable}
-              onPress={() => onSubmit(parsed)}
+              // Guard in the handler, not via `disabled`: RN-web renders
+              // disabled as pointer-events:none and can leave it stale
+              // after the button becomes enabled.
+              onPress={() => submittable && onSubmit(parsed)}
               style={[styles.setButton, !submittable && styles.setButtonDisabled]}
             >
               <Text style={[styles.setLabel, !submittable && styles.setLabelDisabled]}>SET</Text>

@@ -447,16 +447,23 @@ export const useAppStore = create<AppState>((set, get) => {
       if (!active || active.setFeedbacks.length === 0) {
         return state;
       }
-      // The log's last entry is necessarily this exercise's set — logging
-      // only happens through completeSet on the active exercise.
+      // Remove the last log entry FOR THIS EXERCISE — under a superset the
+      // log's tail may belong to the partner, and their set must survive.
       const session = state.activeSession;
+      let setLog = session?.setLog ?? [];
+      for (let i = setLog.length - 1; i >= 0; i--) {
+        if (setLog[i]?.exerciseId === active.exerciseId) {
+          setLog = [...setLog.slice(0, i), ...setLog.slice(i + 1)];
+          break;
+        }
+      }
       return {
         activeExercise: { ...active, setFeedbacks: active.setFeedbacks.slice(0, -1) },
         activeSession: session
           ? {
               ...session,
               setsCompleted: Math.max(0, session.setsCompleted - 1),
-              setLog: session.setLog.slice(0, -1),
+              setLog,
             }
           : null,
       };

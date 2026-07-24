@@ -292,10 +292,12 @@ export default function WorkoutScreen() {
         allowDecimal={padTarget === 'load'}
         onCancel={() => setPadTarget(null)}
         onSubmit={(value) => {
+          // Explicit per-target branches: a double-fired submit (pad already
+          // closed, padTarget null) must be a no-op, never hit the wrong field.
           if (padTarget === 'load') {
             // Pad speaks display units; storage is always kg.
             setLoadKg(unitPreference === 'lb' ? value / LB_PER_KG : value);
-          } else {
+          } else if (padTarget === 'reps') {
             setTargetReps(value);
           }
           setPadTarget(null);
