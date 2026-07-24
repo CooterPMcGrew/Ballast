@@ -114,9 +114,12 @@ interface AppState {
   endSession: () => void;
   /** Prescribe from history, or seed on first encounter (PRD D2). */
   startExercise: (exerciseId: string) => void;
-  /** Stepper adjustments — the only mid-workout numeric input (zero-precision). */
+  /** Stepper adjustments (zero-precision default path). */
   adjustLoad: (deltaKg: number) => void;
   adjustReps: (delta: number) => void;
+  /** Direct entry via the big-key NumberPad — kg always, caller converts. */
+  setLoadKg: (loadKg: number) => void;
+  setTargetReps: (reps: number) => void;
   /** Change remaining sets mid-exercise; floor = the set being done now. */
   adjustSets: (delta: number) => void;
   /**
@@ -281,6 +284,22 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (!state.activeExercise) return state;
       const targetReps = Math.max(1, state.activeExercise.targetReps + delta);
       return { activeExercise: { ...state.activeExercise, targetReps } };
+    }),
+
+  setLoadKg: (loadKg) =>
+    set((state) => {
+      if (!state.activeExercise || !Number.isFinite(loadKg)) return state;
+      return {
+        activeExercise: { ...state.activeExercise, loadKg: Math.max(0, round2(loadKg)) },
+      };
+    }),
+
+  setTargetReps: (reps) =>
+    set((state) => {
+      if (!state.activeExercise || !Number.isFinite(reps)) return state;
+      return {
+        activeExercise: { ...state.activeExercise, targetReps: Math.max(1, Math.round(reps)) },
+      };
     }),
 
   adjustSets: (delta) =>

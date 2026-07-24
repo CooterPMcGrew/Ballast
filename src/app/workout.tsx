@@ -3,10 +3,11 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { NumberPad } from '@/components/NumberPad';
 import { restSecForExercise } from '@/config/progressionConfig';
 import { getExerciseById } from '@/data/exerciseCatalog';
 import type { SetFeedback } from '@/domain/types';
-import { formatLoad, unitSuffix } from '@/domain/units';
+import { formatLoad, LB_PER_KG, unitSuffix } from '@/domain/units';
 import { loadStepKgForExercise, useAppStore } from '@/store/appStore';
 
 /** How the Post-Set Matrix words map back when replaying history. */
@@ -58,12 +59,15 @@ export default function WorkoutScreen() {
   const startExercise = useAppStore((state) => state.startExercise);
   const adjustLoad = useAppStore((state) => state.adjustLoad);
   const adjustReps = useAppStore((state) => state.adjustReps);
+  const setLoadKg = useAppStore((state) => state.setLoadKg);
+  const setTargetReps = useAppStore((state) => state.setTargetReps);
   const adjustSets = useAppStore((state) => state.adjustSets);
   const completeSet = useAppStore((state) => state.completeSet);
   const undoLastSet = useAppStore((state) => state.undoLastSet);
   const abandonExercise = useAppStore((state) => state.abandonExercise);
 
   const [phase, setPhase] = useState<WorkoutPhase>('working');
+  const [padTarget, setPadTarget] = useState<'load' | 'reps' | null>(null);
   const [restRemainingSec, setRestRemainingSec] = useState(0);
   const restEndsAtMs = useRef(0);
   const matrixArmedAtMs = useRef(0);
@@ -151,11 +155,16 @@ export default function WorkoutScreen() {
       </View>
 
       <View style={styles.prescription}>
-        <Text style={styles.loadValue}>
-          {formatLoad(active.loadKg, unitPreference)}
-          <Text style={styles.loadUnit}> {unitSuffix(unitPreference)}</Text>
-        </Text>
-        <Text style={styles.repsValue}>× {active.targetReps}</Text>
+        {/* Tap a numeral to type it — big-key pad, never the system keyboard. */}
+        <Pressable testID="edit-load" onPress={() => setPadTarget('load')}>
+          <Text style={styles.loadValue}>
+            {formatLoad(active.loadKg, unitPreference)}
+            <Text style={styles.loadUnit}> {unitSuffix(unitPreference)}</Text>
+          </Text>
+        </Pressable>
+        <Pressable testID="edit-reps" onPress={() => setPadTarget('reps')}>
+          <Text style={styles.repsValue}>× {active.targetReps}</Text>
+        </Pressable>
         <Text style={styles.rationale}>{active.rationale}</Text>
         {lastResult && (
           <Text style={styles.lastTime}>
@@ -234,6 +243,23 @@ export default function WorkoutScreen() {
           </>
         )}
       </View>
+
+      <NumberPad
+        visible={padTarget !== null}
+        label={padTarget === 'load' ? 'LOAD' : 'REPS'}
+        unit={padTarget === 'load' ? unitSuffix(unitPreference) : undefined}
+        allowDecimal={padTarget === 'load'}
+        onCancel={() => setPadTarget(null)}
+        onSubmit={(value) => {
+          if (padTarget === 'load') {
+            // Pad speaks display units; storage is always kg.
+            setLoadKg(unitPreference === 'lb' ? value / LB_PER_KG : value);
+          } else {
+            setTargetReps(value);
+          }
+          setPadTarget(null);
+        }}
+      />
     </SafeAreaView>
   );
 }
