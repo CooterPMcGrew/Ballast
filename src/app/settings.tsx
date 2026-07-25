@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ABOUT } from '@/config/about';
 import buildInfo from '@/config/buildInfo.json';
 import { CUSTOM_GYM_PRESETS } from '@/domain/equipment';
 import {
@@ -174,11 +175,16 @@ export default function SettingsScreen() {
         </View>
         {exportStatus && <Text style={styles.note}>{exportStatus}</Text>}
 
-        {/* Data plate — build provenance, stamped by CI (dev = local bundle). */}
+        {/* Data plate — authorship + build provenance (CI stamps the build;
+            dev bundles read "dev"). The maker's mark, not marketing. */}
         <View style={styles.dataPlate}>
           <Text style={styles.plateTitle}>BALLAST</Text>
-          <Text style={styles.plateLine}>AUTO-REGULATING STRENGTH SYSTEM</Text>
-          <Text style={styles.plateLine}>MAKER: RAINBOWRUINS</Text>
+          <Text style={styles.plateLine}>{ABOUT.tagline}</Text>
+          <View style={styles.plateDivider} />
+          <Text style={styles.plateLine}>MAKER: {ABOUT.makerName}</Text>
+          <Text style={styles.plateLine}>{ABOUT.origin}</Text>
+          <Text style={styles.plateLine}>{ABOUT.makerLink}</Text>
+          <View style={styles.plateDivider} />
           <Text style={styles.plateLine}>
             REV: {Constants.expoConfig?.version ?? '0.0.0'} · BUILD: {buildInfo.rev}
           </Text>
@@ -314,5 +320,10 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.mono,
     fontSize: fontSize.caption,
     letterSpacing: 1,
+  },
+  plateDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: palette.slate,
+    marginVertical: spacing.xs,
   },
 });
