@@ -63,6 +63,15 @@ export const spacing = {
 } as const;
 
 /**
+ * Universal press acknowledgment — the sub-100ms "I felt that" every
+ * interactive surface must give while the finger is still down. Slight
+ * dim + shrink reads as physical depression without competing with the
+ * palette's semantic colors. Pass to any Pressable's style function.
+ */
+export const pressFeedback = ({ pressed }: { pressed: boolean }) =>
+  pressed ? { opacity: 0.55, transform: [{ scale: 0.98 }] } : null;
+
+/**
  * Post-Set Matrix semantics carried into any set visualization (blocks,
  * log rows): the same three colors as the buttons that recorded them.
  * Hazard here is semantic, not decorative — a grind block IS a warning.

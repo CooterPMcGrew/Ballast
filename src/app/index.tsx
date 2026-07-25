@@ -9,7 +9,14 @@ import { getExerciseById } from '@/data/exerciseCatalog';
 import { muscleRecency, type TimestampedLift } from '@/engine/recency';
 import type { VolumeRow } from '@/engine/history';
 import { useAppStore } from '@/store/appStore';
-import { fontFamily, fontSize, palette, spacing, touchTarget } from '@/theme/tokens';
+import {
+  fontFamily,
+  fontSize,
+  palette,
+  pressFeedback,
+  spacing,
+  touchTarget,
+} from '@/theme/tokens';
 
 /**
  * Home is a status board, nothing else: the recency figure, the volume
@@ -41,7 +48,7 @@ export default function HomeScreen() {
           <Pressable
             testID="open-settings"
             onPress={() => router.push('/settings')}
-            style={styles.settingsButton}
+            style={(state) => [styles.settingsButton, pressFeedback(state)]}
           >
             <Text style={styles.settingsLabel}>SETTINGS ›</Text>
           </Pressable>
@@ -58,7 +65,7 @@ export default function HomeScreen() {
         <Pressable
           testID="start-session"
           onPress={() => router.push('/session')}
-          style={styles.startButton}
+          style={(state) => [styles.startButton, pressFeedback(state)]}
         >
           <Text style={styles.startLabel}>
             {activeSession ? 'RESUME SESSION' : 'START SESSION'}

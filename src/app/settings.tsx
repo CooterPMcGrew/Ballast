@@ -16,7 +16,14 @@ import { persistence } from '@/persistence';
 import { buildExportPayload, exportFileName } from '@/persistence/export';
 import { saveExportFile } from '@/persistence/saveExport';
 import { useAppStore } from '@/store/appStore';
-import { fontFamily, fontSize, palette, spacing, touchTarget } from '@/theme/tokens';
+import {
+  fontFamily,
+  fontSize,
+  palette,
+  pressFeedback,
+  spacing,
+  touchTarget,
+} from '@/theme/tokens';
 
 /**
  * Settings: units, the user's own gym, data export, and the stamped data
@@ -79,7 +86,7 @@ export default function SettingsScreen() {
   return (
     <SafeAreaView style={styles.screen}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Pressable testID="settings-back" onPress={() => router.back()} style={styles.backButton}>
+        <Pressable testID="settings-back" onPress={() => router.back()} style={(state) => [styles.backButton, pressFeedback(state)]}>
           <Text style={styles.backButtonLabel}>‹ HOME</Text>
         </Pressable>
 
@@ -130,7 +137,7 @@ export default function SettingsScreen() {
                   key={tag}
                   testID={`equip-${tag}`}
                   onPress={() => toggleEquipment(tag)}
-                  style={styles.equipRow}
+                  style={(state) => [styles.equipRow, pressFeedback(state)]}
                 >
                   <Text style={[styles.equipLabel, has && styles.equipLabelOn]}>
                     {tag.toUpperCase()}
@@ -197,7 +204,7 @@ function Chip({
     <Pressable
       testID={testID}
       onPress={onPress}
-      style={[styles.chip, active && styles.chipActive]}
+      style={(state) => [styles.chip, active && styles.chipActive, pressFeedback(state)]}
     >
       <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>{label}</Text>
     </Pressable>

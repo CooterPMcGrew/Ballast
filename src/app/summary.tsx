@@ -3,7 +3,14 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppStore } from '@/store/appStore';
-import { fontFamily, fontSize, palette, spacing, touchTarget } from '@/theme/tokens';
+import {
+  fontFamily,
+  fontSize,
+  palette,
+  pressFeedback,
+  spacing,
+  touchTarget,
+} from '@/theme/tokens';
 
 const MS_PER_MINUTE = 60_000;
 
@@ -57,7 +64,11 @@ export default function SummaryScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
-        <Pressable testID="summary-done" onPress={() => router.replace('/')} style={styles.doneButton}>
+        <Pressable
+          testID="summary-done"
+          onPress={() => router.replace('/')}
+          style={(state) => [styles.doneButton, pressFeedback(state)]}
+        >
           <Text style={styles.doneButtonLabel}>DONE</Text>
         </Pressable>
       </View>

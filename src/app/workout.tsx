@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { NumberPad } from '@/components/NumberPad';
+import { buzzRestOver, buzzSetDone, buzzVerdict } from '@/platform/haptics';
 import { restSecForExercise } from '@/config/progressionConfig';
 import { getExerciseById } from '@/data/exerciseCatalog';
 import type { SetFeedback } from '@/domain/types';
@@ -21,6 +22,7 @@ import {
   fontFamily,
   fontSize,
   palette,
+  pressFeedback,
   spacing,
   touchTarget,
 } from '@/theme/tokens';
@@ -72,6 +74,7 @@ export default function WorkoutScreen() {
   const [padTarget, setPadTarget] = useState<'load' | 'reps' | null>(null);
   const [restRemainingSec, setRestRemainingSec] = useState(0);
   const restEndsAtMs = useRef(0);
+  const restTotalSec = useRef(1);
   const matrixArmedAtMs = useRef(0);
   const exercise = exerciseId ? getExerciseById(exerciseId) : undefined;
   const history = useAppStore((state) =>
@@ -99,6 +102,7 @@ export default function WorkoutScreen() {
     const tick = setInterval(() => {
       const left = Math.ceil((restEndsAtMs.current - Date.now()) / 1000);
       if (left <= 0) {
+        buzzRestOver(); // the phone taps you on the shoulder: back to work
         setPhase('working');
       } else {
         setRestRemainingSec(left);
@@ -124,6 +128,7 @@ export default function WorkoutScreen() {
   const isLastSet = setNumber === active.totalSets;
 
   const onCompleteSet = () => {
+    buzzSetDone();
     matrixArmedAtMs.current = Date.now() + MATRIX_ARM_DELAY_MS;
     setPhase('feedback');
   };
@@ -131,6 +136,7 @@ export default function WorkoutScreen() {
   const startRest = () => {
     const restSec = restSecForExercise(exercise);
     restEndsAtMs.current = Date.now() + restSec * 1000;
+    restTotalSec.current = Math.max(1, restSec);
     setRestRemainingSec(restSec);
     setPhase('resting');
   };
@@ -139,6 +145,7 @@ export default function WorkoutScreen() {
     if (Date.now() < matrixArmedAtMs.current) {
       return; // phantom tap from the phase switch — see MATRIX_ARM_DELAY_MS
     }
+    buzzVerdict();
     const finishedLeg = active.supersetOrder;
     completeSet(feedback); // on the final set: folds, partner takes over
     const nextActive = useAppStore.getState().activeExercise;
@@ -176,7 +183,7 @@ export default function WorkoutScreen() {
 
   return (
     <SafeAreaView style={styles.screen}>
-      <Pressable testID="cancel-exercise" onPress={onCancel} style={styles.cancelButton}>
+      <Pressable testID="cancel-exercise" onPress={onCancel} style={(state) => [styles.cancelButton, pressFeedback(state)]}>
         <Text style={styles.cancelLabel}>‹ CANCEL EXERCISE</Text>
       </Pressable>
       <View style={styles.header}>
@@ -197,13 +204,13 @@ export default function WorkoutScreen() {
 
       <View style={styles.prescription}>
         {/* Tap a numeral to type it — big-key pad, never the system keyboard. */}
-        <Pressable testID="edit-load" onPress={() => setPadTarget('load')}>
+        <Pressable testID="edit-load" onPress={() => setPadTarget('load')} style={pressFeedback}>
           <Text style={styles.loadValue}>
             {formatLoad(active.loadKg, unitPreference)}
             <Text style={styles.loadUnit}> {unitSuffix(unitPreference)}</Text>
           </Text>
         </Pressable>
-        <Pressable testID="edit-reps" onPress={() => setPadTarget('reps')}>
+        <Pressable testID="edit-reps" onPress={() => setPadTarget('reps')} style={pressFeedback}>
           <Text style={styles.repsValue}>× {active.targetReps}</Text>
         </Pressable>
         <Text style={styles.rationale}>{active.rationale}</Text>
@@ -224,7 +231,7 @@ export default function WorkoutScreen() {
                 style={[styles.setBlock, { backgroundColor: feedbackColor[feedback] }]}
               />
             ))}
-            <Pressable testID="undo-set" onPress={undoLastSet} style={styles.undoButton}>
+            <Pressable testID="undo-set" onPress={undoLastSet} style={(state) => [styles.undoButton, pressFeedback(state)]}>
               <Text style={styles.undoLabel}>UNDO SET</Text>
             </Pressable>
           </View>
@@ -257,6 +264,15 @@ export default function WorkoutScreen() {
           <>
             <Text style={styles.prompt}>REST</Text>
             <Text style={styles.restCountdown}>{formatCountdown(restRemainingSec)}</Text>
+            {/* Draining bar: rest as a visible quantity, not just digits. */}
+            <View style={styles.restTrack}>
+              <View
+                style={[
+                  styles.restFill,
+                  { width: `${(restRemainingSec / restTotalSec.current) * 100}%` },
+                ]}
+              />
+            </View>
             <View style={styles.buttonStack}>
               <BigButton
                 label="SKIP REST"
@@ -318,11 +334,19 @@ function StepperRow({
 }) {
   return (
     <View style={styles.stepperRow}>
-      <Pressable testID={`stepper-${label}-minus`} onPress={onMinus} style={styles.stepperButton}>
+      <Pressable
+        testID={`stepper-${label}-minus`}
+        onPress={onMinus}
+        style={(state) => [styles.stepperButton, pressFeedback(state)]}
+      >
         <Text style={styles.stepperGlyph}>−</Text>
       </Pressable>
       <Text style={styles.stepperLabel}>{label}</Text>
-      <Pressable testID={`stepper-${label}-plus`} onPress={onPlus} style={styles.stepperButton}>
+      <Pressable
+        testID={`stepper-${label}-plus`}
+        onPress={onPlus}
+        style={(state) => [styles.stepperButton, pressFeedback(state)]}
+      >
         <Text style={styles.stepperGlyph}>+</Text>
       </Pressable>
     </View>
@@ -342,7 +366,7 @@ function BigButton({
     <Pressable
       testID={`button-${label}`}
       onPress={onPress}
-      style={[styles.bigButton, { borderColor: color }]}
+      style={(state) => [styles.bigButton, { borderColor: color }, pressFeedback(state)]}
     >
       <Text style={[styles.bigButtonLabel, { color }]}>{label}</Text>
     </Pressable>
@@ -498,6 +522,17 @@ const styles = StyleSheet.create({
     fontSize: fontSize.numeralLarge,
     textAlign: 'center',
     marginBottom: spacing.sm,
+  },
+  restTrack: {
+    height: 4,
+    backgroundColor: palette.surface,
+    borderRadius: 2,
+    marginBottom: spacing.md,
+    overflow: 'hidden',
+  },
+  restFill: {
+    height: 4,
+    backgroundColor: palette.schematicCyan,
   },
   buttonStack: {
     gap: spacing.sm,

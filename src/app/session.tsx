@@ -1,6 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated, { LinearTransition } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BodyHeatMap } from '@/components/BodyHeatMap';
@@ -29,9 +30,14 @@ import {
   fontFamily,
   fontSize,
   palette,
+  pressFeedback,
   spacing,
   touchTarget,
 } from '@/theme/tokens';
+
+/** Rows glide to their new rank instead of teleporting — the re-ranking
+ *  is the product's core mechanic, so the user should SEE it happen. */
+const RERANK_TRANSITION = LinearTransition.duration(300);
 
 const MS_PER_DAY = 86_400_000;
 
@@ -119,7 +125,7 @@ export default function SessionScreen() {
           <Pressable
             testID="back-to-home"
             onPress={() => router.back()}
-            style={styles.backButton}
+            style={(state) => [styles.backButton, pressFeedback(state)]}
           >
             <Text style={styles.backButtonLabel}>‹ HOME</Text>
           </Pressable>
@@ -133,7 +139,7 @@ export default function SessionScreen() {
                   key={p.id}
                   testID={`profile-${p.id}`}
                   onPress={() => selectGymProfile(p.id)}
-                  style={[styles.chip, active && styles.chipActive]}
+                  style={(state) => [styles.chip, active && styles.chipActive, pressFeedback(state)]}
                 >
                   <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>
                     {p.name.toUpperCase()}
@@ -157,7 +163,7 @@ export default function SessionScreen() {
                     params: { muscleGroup: groups.join(',') },
                   })
                 }
-                style={styles.chip}
+                style={(state) => [styles.chip, pressFeedback(state)]}
               >
                 <Text style={styles.chipLabel}>{name}</Text>
               </Pressable>
@@ -171,7 +177,7 @@ export default function SessionScreen() {
                 key={group}
                 testID={`train-${group}`}
                 onPress={() => router.replace({ pathname: '/session', params: { muscleGroup: group } })}
-                style={styles.muscleButton}
+                style={(state) => [styles.muscleButton, pressFeedback(state)]}
               >
                 <MuscleMap group={group} />
                 <Text style={styles.muscleButtonLabel}>{group.toUpperCase()}</Text>
@@ -180,7 +186,7 @@ export default function SessionScreen() {
           </View>
 
           {activeSession && (
-            <Pressable testID="end-session" onPress={onEndSessionShared} style={styles.endButton}>
+            <Pressable testID="end-session" onPress={onEndSessionShared} style={(state) => [styles.endButton, pressFeedback(state)]}>
               <Text style={styles.endButtonLabel}>END SESSION</Text>
             </Pressable>
           )}
@@ -217,7 +223,7 @@ export default function SessionScreen() {
         <Pressable
           testID="back-to-groups"
           onPress={() => router.replace('/session')}
-          style={styles.backButton}
+          style={(state) => [styles.backButton, pressFeedback(state)]}
         >
           <Text style={styles.backButtonLabel}>‹ MUSCLE GROUPS</Text>
         </Pressable>
@@ -263,7 +269,7 @@ export default function SessionScreen() {
           <Pressable
             testID="superset-arm"
             onPress={toggleSupersetArm}
-            style={[styles.supersetChip, supersetArmed && styles.supersetChipArmed]}
+            style={(state) => [styles.supersetChip, supersetArmed && styles.supersetChipArmed, pressFeedback(state)]}
           >
             <Text style={[styles.supersetChipLabel, supersetArmed && styles.supersetChipLabelArmed]}>
               {supersetArmed
@@ -282,16 +288,21 @@ export default function SessionScreen() {
         {ranked.map(({ exercise, rationale }) => {
           const lastLine = lastResultLine(historyByExercise[exercise.id], unitPreference);
           return (
-            <Pressable
-              key={exercise.id}
-              testID={`recommend-${exercise.id}`}
-              onPress={() => onExercisePress(exercise.id)}
-              style={[styles.row, exercise.id === supersetPendingId && styles.rowPending]}
-            >
-              <Text style={styles.rowName}>{exercise.name}</Text>
-              <Text style={styles.rowRationale}>{rationale}</Text>
-              {lastLine && <Text style={styles.rowLast}>{lastLine}</Text>}
-            </Pressable>
+            <Animated.View key={exercise.id} layout={RERANK_TRANSITION}>
+              <Pressable
+                testID={`recommend-${exercise.id}`}
+                onPress={() => onExercisePress(exercise.id)}
+                style={(state) => [
+                  styles.row,
+                  exercise.id === supersetPendingId && styles.rowPending,
+                  pressFeedback(state),
+                ]}
+              >
+                <Text style={styles.rowName}>{exercise.name}</Text>
+                <Text style={styles.rowRationale}>{rationale}</Text>
+                {lastLine && <Text style={styles.rowLast}>{lastLine}</Text>}
+              </Pressable>
+            </Animated.View>
           );
         })}
 
@@ -305,7 +316,11 @@ export default function SessionScreen() {
                   key={exercise.id}
                   testID={`mix-${exercise.id}`}
                   onPress={() => onExercisePress(exercise.id)}
-                  style={[styles.row, exercise.id === supersetPendingId && styles.rowPending]}
+                  style={(state) => [
+                    styles.row,
+                    exercise.id === supersetPendingId && styles.rowPending,
+                    pressFeedback(state),
+                  ]}
                 >
                   <Text style={styles.rowName}>{exercise.name}</Text>
                   <Text style={styles.rowMuscles}>{exercise.primaryMuscles.join(' · ')}</Text>
@@ -346,7 +361,7 @@ export default function SessionScreen() {
           </>
         )}
 
-        <Pressable testID="end-session" onPress={onEndSessionShared} style={styles.endButton}>
+        <Pressable testID="end-session" onPress={onEndSessionShared} style={(state) => [styles.endButton, pressFeedback(state)]}>
           <Text style={styles.endButtonLabel}>END SESSION</Text>
         </Pressable>
       </ScrollView>

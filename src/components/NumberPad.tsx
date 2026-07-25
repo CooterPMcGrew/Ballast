@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { fontFamily, fontSize, palette, spacing, touchTarget } from '@/theme/tokens';
+import {
+  fontFamily,
+  fontSize,
+  palette,
+  pressFeedback,
+  spacing,
+  touchTarget,
+} from '@/theme/tokens';
 
 /**
  * Direct numeric entry WITHOUT a system keyboard. CLAUDE.md §2 bans
@@ -76,7 +83,7 @@ export function NumberPad({
                   key={key}
                   testID={`pad-${key}`}
                   onPress={() => onKey(key)}
-                  style={styles.key}
+                  style={(state) => [styles.key, pressFeedback(state)]}
                 >
                   <Text style={styles.keyGlyph}>{key}</Text>
                 </Pressable>
@@ -85,7 +92,7 @@ export function NumberPad({
           ))}
 
           <View style={styles.actionRow}>
-            <Pressable testID="pad-cancel" onPress={onCancel} style={styles.cancelButton}>
+            <Pressable testID="pad-cancel" onPress={onCancel} style={(state) => [styles.cancelButton, pressFeedback(state)]}>
               <Text style={styles.cancelLabel}>CANCEL</Text>
             </Pressable>
             <Pressable
@@ -94,7 +101,7 @@ export function NumberPad({
               // disabled as pointer-events:none and can leave it stale
               // after the button becomes enabled.
               onPress={() => submittable && onSubmit(parsed)}
-              style={[styles.setButton, !submittable && styles.setButtonDisabled]}
+              style={(state) => [styles.setButton, !submittable && styles.setButtonDisabled, pressFeedback(state)]}
             >
               <Text style={[styles.setLabel, !submittable && styles.setLabelDisabled]}>SET</Text>
             </Pressable>
