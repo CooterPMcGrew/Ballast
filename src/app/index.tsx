@@ -60,7 +60,7 @@ export default function HomeScreen() {
         <VolumeChart rows={volumeRows} unit={unitPreference} />
       </ScrollView>
 
-      {/* Pinned to the thumb zone — the one action Home offers. */}
+      {/* Pinned to the thumb zone — start is primary, history secondary. */}
       <View style={styles.footer}>
         <Pressable
           testID="start-session"
@@ -70,6 +70,13 @@ export default function HomeScreen() {
           <Text style={styles.startLabel}>
             {activeSession ? 'RESUME SESSION' : 'START SESSION'}
           </Text>
+        </Pressable>
+        <Pressable
+          testID="open-history"
+          onPress={() => router.push('/history')}
+          style={(state) => [styles.historyButton, pressFeedback(state)]}
+        >
+          <Text style={styles.historyLabel}>WORKOUT HISTORY</Text>
         </Pressable>
       </View>
     </SafeAreaView>
@@ -126,6 +133,22 @@ const styles = StyleSheet.create({
     color: palette.schematicCyan,
     fontFamily: fontFamily.display,
     fontSize: fontSize.body,
+    letterSpacing: 1,
+  },
+  historyButton: {
+    minHeight: touchTarget.secondaryMinPt,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: palette.slate,
+    borderRadius: 4,
+    backgroundColor: palette.surface,
+    marginTop: spacing.sm,
+  },
+  historyLabel: {
+    color: palette.slate,
+    fontFamily: fontFamily.display,
+    fontSize: fontSize.label,
     letterSpacing: 1,
   },
 });
