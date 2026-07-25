@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { LinearTransition } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -76,6 +76,11 @@ export default function SessionScreen() {
   const activeSession = useAppStore((state) => state.activeSession);
   const startSession = useAppStore((state) => state.startSession);
   const endSession = useAppStore((state) => state.endSession);
+
+  // Collapsible lists so END SESSION never hides behind 40 rows of catalog.
+  // The ranked list starts open (it's the point); the rest starts folded.
+  const [showRanked, setShowRanked] = useState(true);
+  const [showOffTarget, setShowOffTarget] = useState(false);
 
   // Focus param: one muscle or a comma-joined preset ("chest,shoulders,triceps").
   const targetGroups = (muscleGroup ?? '')
@@ -265,7 +270,15 @@ export default function SessionScreen() {
         </View>
 
         <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>UP NEXT</Text>
+          <Pressable
+            testID="toggle-ranked"
+            onPress={() => setShowRanked((open) => !open)}
+            style={(state) => [styles.sectionToggle, pressFeedback(state)]}
+          >
+            <Text style={styles.sectionTitle}>
+              {showRanked ? '▾' : '▸'} UP NEXT ({ranked.length})
+            </Text>
+          </Pressable>
           <Pressable
             testID="superset-arm"
             onPress={toggleSupersetArm}
@@ -280,12 +293,12 @@ export default function SessionScreen() {
             </Text>
           </Pressable>
         </View>
-        {ranked.length === 0 && (
+        {showRanked && ranked.length === 0 && (
           <Text style={styles.rationale}>
             Nothing available for this group at this gym — switch profiles on Home.
           </Text>
         )}
-        {ranked.map(({ exercise, rationale }) => {
+        {showRanked && ranked.map(({ exercise, rationale }) => {
           const lastLine = lastResultLine(historyByExercise[exercise.id], unitPreference);
           return (
             <Animated.View key={exercise.id} layout={RERANK_TRANSITION}>
@@ -308,8 +321,16 @@ export default function SessionScreen() {
 
         {offTarget.length > 0 && (
           <>
-            <Text style={styles.sectionTitle}>EVERYTHING ELSE</Text>
-            {offTarget.map((exercise) => {
+            <Pressable
+              testID="toggle-offtarget"
+              onPress={() => setShowOffTarget((open) => !open)}
+              style={(state) => [styles.sectionToggle, pressFeedback(state)]}
+            >
+              <Text style={styles.sectionTitle}>
+                {showOffTarget ? '▾' : '▸'} EVERYTHING ELSE ({offTarget.length})
+              </Text>
+            </Pressable>
+            {showOffTarget && offTarget.map((exercise) => {
               const lastLine = lastResultLine(historyByExercise[exercise.id], unitPreference);
               return (
                 <Pressable
@@ -514,6 +535,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  // Section titles double as fold toggles — 48pt so a tired thumb can fold
+  // 40 rows of catalog out of the way of END SESSION.
+  sectionToggle: {
+    minHeight: touchTarget.secondaryMinPt,
+    justifyContent: 'center',
+    alignSelf: 'flex-start',
+    paddingRight: spacing.md,
   },
   supersetChip: {
     minHeight: touchTarget.secondaryMinPt,
