@@ -3,7 +3,6 @@ import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ABOUT } from '@/config/about';
 import { getExerciseById } from '@/data/exerciseCatalog';
 import { buildWeekReview } from '@/engine/weekReview';
 import { useAppStore } from '@/store/appStore';
@@ -73,10 +72,7 @@ export default function ReviewScreen() {
 
         {top && (
           <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.wordmark}>BALLAST</Text>
-              <Text style={styles.window}>{windowLabel(nowMs)}</Text>
-            </View>
+            <Text style={styles.window}>{windowLabel(nowMs)}</Text>
             <View style={styles.divider} />
 
             {review.prCount > 0 && (
@@ -133,8 +129,7 @@ export default function ReviewScreen() {
             <View style={styles.divider} />
             <View style={styles.cardFooter}>
               <Text style={styles.footerText}>
-                EST. 1RM (EPLEY) · {ABOUT.makerLink} · REV{' '}
-                {Constants.expoConfig?.version ?? '0.0.0'}
+                BALLAST v{Constants.expoConfig?.version ?? '0.0.0'}
               </Text>
             </View>
           </View>
@@ -180,17 +175,6 @@ const styles = StyleSheet.create({
     backgroundColor: palette.surface,
     padding: spacing.lg,
     marginTop: spacing.sm,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-  },
-  wordmark: {
-    color: palette.textPrimary,
-    fontFamily: fontFamily.display,
-    fontSize: fontSize.label,
-    letterSpacing: 3,
   },
   window: {
     color: palette.copper,

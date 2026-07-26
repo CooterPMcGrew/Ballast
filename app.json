@@ -2,7 +2,7 @@
   "expo": {
     "name": "Ballast",
     "slug": "ballast",
-    "version": "0.3.0",
+    "version": "0.5.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "ballast",
