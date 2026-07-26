@@ -8,7 +8,22 @@ import type { Exercise } from '@/domain/types';
 
 export const EXERCISE_CATALOG: readonly Exercise[] = validateExercises(rawExercises);
 
+/**
+ * User-defined exercises, synced here by the store (hydrate + every
+ * mutation) so non-reactive lookups resolve them. Reactive lists must
+ * subscribe to the store's customExercises — this registry is for id
+ * resolution only.
+ */
+let customRegistry: readonly Exercise[] = [];
+
+export function registerCustomExercises(customExercises: readonly Exercise[]): void {
+  customRegistry = customExercises;
+}
+
 /** Lookup by id; returns undefined for unknown ids — caller decides severity. */
 export function getExerciseById(id: string): Exercise | undefined {
-  return EXERCISE_CATALOG.find((exercise) => exercise.id === id);
+  return (
+    EXERCISE_CATALOG.find((exercise) => exercise.id === id) ??
+    customRegistry.find((exercise) => exercise.id === id)
+  );
 }

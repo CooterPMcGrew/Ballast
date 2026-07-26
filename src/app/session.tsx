@@ -69,6 +69,7 @@ export default function SessionScreen() {
   const customGym = useAppStore((state) => state.customGym);
   const historyByExercise = useAppStore((state) => state.sessionHistoryByExercise);
   const unitPreference = useAppStore((state) => state.unitPreference);
+  const customExercises = useAppStore((state) => state.customExercises);
   const supersetArmed = useAppStore((state) => state.supersetArmed);
   const supersetPendingId = useAppStore((state) => state.supersetPendingId);
   const toggleSupersetArm = useAppStore((state) => state.toggleSupersetArm);
@@ -206,8 +207,10 @@ export default function SessionScreen() {
     .filter((exercise): exercise is Exercise => exercise !== undefined);
   const coverage = accumulateCoverage(completedExercises);
   const groupPercents = groupCoverage(coverage);
+  // Stock + user-built: customs rank exactly like catalog movements.
+  const fullCatalog = [...EXERCISE_CATALOG, ...customExercises];
   const ranked = rankExercisesForSession({
-    catalog: EXERCISE_CATALOG,
+    catalog: fullCatalog,
     profile,
     targetGroups,
     completedExercises,
@@ -217,7 +220,7 @@ export default function SessionScreen() {
   // it never locks the user in ("mix if you want").
   const rankedIds = new Set(ranked.map((entry) => entry.exercise.id));
   const completedIds = new Set(completedExercises.map((exercise) => exercise.id));
-  const offTarget = filterAvailableExercises(EXERCISE_CATALOG, profile).filter(
+  const offTarget = filterAvailableExercises(fullCatalog, profile).filter(
     (exercise) => !rankedIds.has(exercise.id) && !completedIds.has(exercise.id),
   );
 

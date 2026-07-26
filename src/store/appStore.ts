@@ -13,7 +13,11 @@ import {
 } from '@/config/progressionConfig';
 import { DEFAULT_GYM_PROFILES } from '@/data/defaultGymProfiles';
 import { buildDemoHistory } from '@/data/demoHistory';
-import { getExerciseById } from '@/data/exerciseCatalog';
+import {
+  EXERCISE_CATALOG,
+  getExerciseById,
+  registerCustomExercises,
+} from '@/data/exerciseCatalog';
 import { prescribeNextSession, seedPlan, worstFeedback } from '@/engine/progression';
 import { estimateSessionEnergy, type EnergyEstimate } from '@/engine/energy';
 import { seedLoadKgForExercise } from '@/engine/seeding';
@@ -22,6 +26,7 @@ import type { TimestampedSessionResult } from '@/persistence/types';
 import {
   CUSTOM_GYM_PROFILE_ID,
   type CustomGymState,
+  type Exercise,
   type GymProfile,
   type MuscleGroup,
   type SetFeedback,
@@ -102,6 +107,12 @@ interface AppState {
   unitPreference: UnitPreference;
   /** "Different gym": off = stock profiles exactly as shipped. */
   customGym: CustomGymState;
+  /**
+   * User-defined exercises, local to this device. Contributions are NEVER
+   * user-entered — always derived from the role lists (the safeguard that
+   * keeps hand-made entries from poisoning the recommender).
+   */
+  customExercises: Exercise[];
 
   /** Load persisted state; call once from the root layout. */
   hydrate: () => Promise<void>;
@@ -112,6 +123,15 @@ interface AppState {
    * while selected falls back to the first stock profile.
    */
   setCustomGym: (customGym: CustomGymState) => void;
+  /** Returns the new exercise's id, or null if the input was unusable. */
+  addCustomExercise: (input: {
+    name: string;
+    exerciseClass: Exercise['exerciseClass'];
+    equipment: Exercise['equipment'];
+    primaryMuscles: MuscleGroup[];
+    secondaryMuscles: MuscleGroup[];
+  }) => string | null;
+  removeCustomExercise: (exerciseId: string) => void;
   /** Prototyping aid: write the demo training block into real history. */
   seedDemoHistory: () => Promise<void>;
   /** Destructive; Settings gates it behind a two-tap confirm. */
@@ -195,6 +215,7 @@ export const useAppStore = create<AppState>((set, get) => {
   unitPreference: 'kg',
   // Bodyweight-only until described — the one tag every gym has.
   customGym: { enabled: false, equipment: ['bodyweight'] },
+  customExercises: [],
 
   hydrate: async () => {
     try {
@@ -206,7 +227,9 @@ export const useAppStore = create<AppState>((set, get) => {
         sessionHistoryByExercise: persisted.sessionHistoryByExercise,
         unitPreference: persisted.unitPreference ?? 'kg',
         customGym: persisted.customGym ?? { enabled: false, equipment: ['bodyweight'] },
+        customExercises: persisted.customExercises ?? [],
       });
+      registerCustomExercises(persisted.customExercises ?? []);
     } catch (error) {
       // Degrade to in-memory defaults but keep the app usable; the failure
       // is loud in dev and the next durable write will surface it again.
@@ -241,6 +264,53 @@ export const useAppStore = create<AppState>((set, get) => {
     } else if (!customGym.enabled && selectedGymProfileId === CUSTOM_GYM_PROFILE_ID) {
       selectGymProfile(DEFAULT_GYM_PROFILES[0]!.id);
     }
+  },
+
+  addCustomExercise: (input) => {
+    const name = input.name.trim();
+    if (name === '' || input.primaryMuscles.length === 0 || input.equipment.length === 0) {
+      console.error('addCustomExercise: name, equipment, and a primary muscle are required');
+      return null;
+    }
+    // "custom-" prefix keeps user ids out of the stock namespace forever.
+    const slug = name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    const taken = new Set(
+      [...EXERCISE_CATALOG, ...get().customExercises].map((exercise) => exercise.id),
+    );
+    let id = `custom-${slug}`;
+    for (let suffix = 2; taken.has(id); suffix++) {
+      id = `custom-${slug}-${suffix}`;
+    }
+    // No muscleContributions on purpose: derived shares only (see AppState doc).
+    const exercise: Exercise = {
+      id,
+      name,
+      exerciseClass: input.exerciseClass,
+      equipment: input.equipment,
+      primaryMuscles: input.primaryMuscles,
+      secondaryMuscles: input.secondaryMuscles,
+    };
+    const customExercises = [...get().customExercises, exercise];
+    set({ customExercises });
+    registerCustomExercises(customExercises);
+    persistence
+      .saveCustomExercises(customExercises)
+      .catch((error) => console.error('persistence: custom exercise save failed', error));
+    return id;
+  },
+
+  removeCustomExercise: (exerciseId) => {
+    const customExercises = get().customExercises.filter(
+      (exercise) => exercise.id !== exerciseId,
+    );
+    set({ customExercises });
+    registerCustomExercises(customExercises);
+    persistence
+      .saveCustomExercises(customExercises)
+      .catch((error) => console.error('persistence: custom exercise save failed', error));
   },
 
   seedDemoHistory: async () => {

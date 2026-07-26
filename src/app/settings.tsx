@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ABOUT } from '@/config/about';
@@ -11,6 +11,7 @@ import {
   EQUIPMENT_TAGS,
   UNIT_PREFERENCES,
   type EquipmentTag,
+  type Exercise,
   type UnitPreference,
 } from '@/domain/types';
 import { persistence } from '@/persistence';
@@ -40,8 +41,37 @@ export default function SettingsScreen() {
 
   const [exportStatus, setExportStatus] = useState<string | null>(null);
   const [confirmingClear, setConfirmingClear] = useState(false);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const seedDemoHistory = useAppStore((state) => state.seedDemoHistory);
   const clearHistory = useAppStore((state) => state.clearHistory);
+  const customExercises = useAppStore((state) => state.customExercises);
+  const removeCustomExercise = useAppStore((state) => state.removeCustomExercise);
+
+  // Submission = a mail the USER consciously sends; the app itself never
+  // phones home. Opens their mail client pre-filled for maker review.
+  const submitExercise = (exercise: Exercise) => {
+    const body =
+      `Custom exercise submission for the Ballast catalog:\n\n` +
+      `${JSON.stringify(exercise, null, 2)}\n\n` +
+      `Sent from Ballast v${Constants.expoConfig?.version ?? '0.0.0'}`;
+    const url =
+      `mailto:${ABOUT.submissionsEmail}` +
+      `?subject=${encodeURIComponent(`Ballast exercise: ${exercise.name}`)}` +
+      `&body=${encodeURIComponent(body)}`;
+    Linking.openURL(url).catch((error) => {
+      console.error('submitExercise: no mail handler', error);
+      setExportStatus('no mail app available on this device');
+    });
+  };
+
+  const onDeleteCustom = (exerciseId: string) => {
+    if (confirmingDeleteId !== exerciseId) {
+      setConfirmingDeleteId(exerciseId);
+      return;
+    }
+    setConfirmingDeleteId(null);
+    removeCustomExercise(exerciseId);
+  };
 
   const onSeedDemo = async () => {
     await seedDemoHistory();
@@ -152,6 +182,39 @@ export default function SettingsScreen() {
           </>
         )}
 
+        <Text style={styles.kicker}>MY EXERCISES</Text>
+        {customExercises.length === 0 && (
+          <Text style={styles.note}>
+            none yet — customs live on this device; SUBMIT emails one for catalog review
+          </Text>
+        )}
+        {customExercises.map((exercise) => (
+          <View key={exercise.id} style={styles.customRow}>
+            <View style={styles.customInfo}>
+              <Text style={styles.customName}>{exercise.name}</Text>
+              <Text style={styles.customMuscles}>{exercise.primaryMuscles.join(' · ')}</Text>
+            </View>
+            <Chip
+              testID={`submit-${exercise.id}`}
+              label="SUBMIT"
+              active={false}
+              onPress={() => submitExercise(exercise)}
+            />
+            <Chip
+              testID={`delete-${exercise.id}`}
+              label={confirmingDeleteId === exercise.id ? 'SURE?' : 'DELETE'}
+              active={confirmingDeleteId === exercise.id}
+              onPress={() => onDeleteCustom(exercise.id)}
+            />
+          </View>
+        ))}
+        <Chip
+          testID="add-custom"
+          label="ADD CUSTOM EXERCISE ›"
+          active={false}
+          onPress={() => router.push('/custom')}
+        />
+
         <Text style={styles.kicker}>DATA</Text>
         <View style={styles.chipRow}>
           <Chip
@@ -178,6 +241,12 @@ export default function SettingsScreen() {
         {/* Data plate — authorship + build provenance (CI stamps the build;
             dev bundles read "dev"). The maker's mark, not marketing. */}
         <View style={styles.dataPlate}>
+          {/* Corner fasteners — the one ornament the plate metaphor earns:
+              a data plate IS a riveted object. Nowhere else. */}
+          <View style={[styles.rivet, styles.rivetTL]} />
+          <View style={[styles.rivet, styles.rivetTR]} />
+          <View style={[styles.rivet, styles.rivetBL]} />
+          <View style={[styles.rivet, styles.rivetBR]} />
           <Text style={styles.plateTitle}>BALLAST</Text>
           <Text style={styles.plateLine}>{ABOUT.tagline}</Text>
           <View style={styles.plateDivider} />
@@ -280,6 +349,26 @@ const styles = StyleSheet.create({
     fontSize: fontSize.caption,
     marginTop: spacing.sm,
   },
+  customRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    minHeight: touchTarget.secondaryMinPt,
+    marginBottom: spacing.sm,
+  },
+  customInfo: {
+    flex: 1,
+  },
+  customName: {
+    color: palette.textPrimary,
+    fontFamily: fontFamily.displayRegular,
+    fontSize: fontSize.body,
+  },
+  customMuscles: {
+    color: palette.slate,
+    fontFamily: fontFamily.mono,
+    fontSize: fontSize.caption,
+  },
   equipRow: {
     minHeight: touchTarget.secondaryMinPt,
     flexDirection: 'row',
@@ -326,4 +415,17 @@ const styles = StyleSheet.create({
     backgroundColor: palette.slate,
     marginVertical: spacing.xs,
   },
+  rivet: {
+    position: 'absolute',
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: palette.slate,
+    backgroundColor: palette.gunmetal,
+  },
+  rivetTL: { top: 5, left: 5 },
+  rivetTR: { top: 5, right: 5 },
+  rivetBL: { bottom: 5, left: 5 },
+  rivetBR: { bottom: 5, right: 5 },
 });

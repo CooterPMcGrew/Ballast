@@ -10,4 +10,9 @@ export const ABOUT = {
   tagline: 'AUTO-REGULATING STRENGTH SYSTEM',
   /** One human sentence — provenance, not marketing. */
   origin: 'DESIGNED, TUNED, AND FIELD-TESTED BY ITS MAKER',
+  /**
+   * Where SUBMIT sends custom exercises for catalog review. Plus-alias:
+   * filterable in Gmail, and the bare address never ships verbatim.
+   */
+  submissionsEmail: 'cpmcgrew+ballast@gmail.com',
 } as const;

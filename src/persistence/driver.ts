@@ -10,6 +10,7 @@ import {
   UNIT_PREFERENCES,
   type CustomGymState,
   type EquipmentTag,
+  type Exercise,
   type SetFeedback,
   type UnitPreference,
 } from '@/domain/types';
@@ -26,6 +27,11 @@ const DB_NAME = 'ballast.db';
 const SETTING_PROFILE = 'selectedGymProfileId';
 const SETTING_UNIT = 'unitPreference';
 const SETTING_CUSTOM_GYM = 'customGymJson';
+// WORKAROUND — custom exercises live as a settings JSON blob, not in the
+// (still empty) exercises tables. Solves cross-driver parity in one step;
+// does not solve relational queries over customs. Root fix: migrate into
+// the exercises tables when they become the authoritative store (v2).
+const SETTING_CUSTOM_EXERCISES = 'customExercisesJson';
 
 interface SessionRow {
   exercise_id: string;
@@ -121,6 +127,7 @@ export function createDriver(): PersistenceDriver {
         selectedGymProfileId: settings.get(SETTING_PROFILE) ?? null,
         unitPreference: parseUnit(settings.get(SETTING_UNIT)),
         customGym: parseCustomGym(settings.get(SETTING_CUSTOM_GYM)),
+        customExercises: parseCustomExercises(settings.get(SETTING_CUSTOM_EXERCISES)),
         sessionHistoryByExercise,
       };
     },
@@ -135,6 +142,14 @@ export function createDriver(): PersistenceDriver {
 
     async saveCustomGym(customGym: CustomGymState) {
       await upsertSetting(requireDb(), SETTING_CUSTOM_GYM, JSON.stringify(customGym));
+    },
+
+    async saveCustomExercises(customExercises) {
+      await upsertSetting(
+        requireDb(),
+        SETTING_CUSTOM_EXERCISES,
+        JSON.stringify(customExercises),
+      );
     },
 
     async appendSession(row: PersistedSessionRow) {
@@ -183,6 +198,24 @@ function parseUnit(raw: string | undefined): UnitPreference | null {
   return raw !== undefined && UNIT_PREFERENCES.includes(raw as UnitPreference)
     ? (raw as UnitPreference)
     : null;
+}
+
+/** Corrupt or junk entries drop loudly; the app never wedges on stored data. */
+function parseCustomExercises(raw: string | undefined): Exercise[] | null {
+  if (raw === undefined) return null;
+  try {
+    const parsed = JSON.parse(raw) as Exercise[];
+    if (!Array.isArray(parsed)) throw new Error('not an array');
+    return parsed.filter(
+      (entry) =>
+        typeof entry?.id === 'string' &&
+        typeof entry?.name === 'string' &&
+        Array.isArray(entry?.primaryMuscles),
+    );
+  } catch (error) {
+    console.error('persistence: corrupt custom exercises, ignoring', error);
+    return null;
+  }
 }
 
 /** A corrupt stored blob resets to null (loudly) rather than wedging startup. */
