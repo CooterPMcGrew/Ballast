@@ -18,6 +18,9 @@ import {
 
 const MS_PER_DAY = 86_400_000;
 
+/** The card stays one glance deep — hero plus this many bars, no scroll-soup. */
+const CARD_MOVERS_MAX = 4;
+
 /** "JUL 18 — JUL 25" from the trailing 7-day window. */
 function windowLabel(nowMs: number): string {
   const monthDay = (ms: number) => {
@@ -34,17 +37,19 @@ function pct(value: number): string {
 }
 
 /**
- * Week review — the shareable screen. One screenshot answers "is this
- * thing working?": biggest e1RM gains between each lift's last two
- * sessions, PRs in gold (the palette's one reserved celebration color),
- * week-over-week volume. Method stated on-screen: estimates, not
- * measurements (Exposed Mechanism).
+ * Week review — one framed, screenshot-shaped card. The share flow IS the
+ * OS screenshot: no export machinery, no share SDK (simplicity is the
+ * moat). Hero gain, PR stars in gold, magnitude bars for the rest, and
+ * the method + provenance printed on the card so a shared image carries
+ * its own caveat and its maker's mark.
  */
 export default function ReviewScreen() {
   const historyByExercise = useAppStore((state) => state.sessionHistoryByExercise);
   const nowMs = Date.now();
   const review = buildWeekReview(historyByExercise, nowMs);
-  const [top, ...rest] = review.movers;
+  const [top, ...others] = review.movers;
+  const bars = others.slice(0, CARD_MOVERS_MAX);
+  const barScale = Math.max(...bars.map((mover) => Math.abs(mover.growthPct)), 1);
 
   const nameOf = (exerciseId: string) =>
     getExerciseById(exerciseId)?.name.toUpperCase() ?? exerciseId.toUpperCase();
@@ -60,11 +65,6 @@ export default function ReviewScreen() {
           <Text style={styles.backButtonLabel}>‹ HOME</Text>
         </Pressable>
 
-        <View style={styles.titleRow}>
-          <Text style={styles.kicker}>WEEK REVIEW</Text>
-          <Text style={styles.window}>{windowLabel(nowMs)}</Text>
-        </View>
-
         {!top && (
           <Text style={styles.emptyNote}>
             log two sessions of any lift this week and the review comes alive
@@ -72,7 +72,13 @@ export default function ReviewScreen() {
         )}
 
         {top && (
-          <>
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.wordmark}>BALLAST</Text>
+              <Text style={styles.window}>{windowLabel(nowMs)}</Text>
+            </View>
+            <View style={styles.divider} />
+
             {review.prCount > 0 && (
               <Text style={styles.prHeadline}>
                 ★ {review.prCount} PR{review.prCount === 1 ? '' : 'S'} THIS WEEK
@@ -83,45 +89,56 @@ export default function ReviewScreen() {
               <Text style={[styles.heroPct, top.isPr && styles.gold]}>{pct(top.growthPct)}</Text>
               <Text style={styles.heroName}>
                 {nameOf(top.exerciseId)}
-                {top.isPr ? '  ★ PR' : ''}
+                {top.isPr ? '  ★' : ''}
               </Text>
-              <Text style={styles.heroCaption}>TOP GAIN — LAST TWO SESSIONS</Text>
+              <Text style={styles.heroCaption}>TOP GAIN THIS WEEK</Text>
             </View>
+
+            {bars.map((mover) => {
+              const color = mover.isPr
+                ? palette.gold
+                : mover.growthPct >= 0
+                  ? palette.schematicCyan
+                  : palette.slate;
+              return (
+                <View key={mover.exerciseId} style={styles.moverBlock}>
+                  <View style={styles.moverLine}>
+                    <Text style={styles.moverName}>
+                      {nameOf(mover.exerciseId)}
+                      {mover.isPr ? ' ★' : ''}
+                    </Text>
+                    <Text style={[styles.moverPct, { color }]}>{pct(mover.growthPct)}</Text>
+                  </View>
+                  <View style={styles.barTrack}>
+                    <View
+                      style={[
+                        styles.barFill,
+                        {
+                          width: `${(Math.abs(mover.growthPct) / barScale) * 100}%`,
+                          backgroundColor: color,
+                        },
+                      ]}
+                    />
+                  </View>
+                </View>
+              );
+            })}
 
             <Text style={styles.volumeLine}>
               {review.volumeDeltaPct === null
-                ? 'FIRST TRACKED WEEK — NO VOLUME BASELINE'
+                ? 'FIRST TRACKED WEEK'
                 : `VOLUME ${pct(review.volumeDeltaPct)} VS LAST WEEK`}
             </Text>
 
-            {rest.map((mover) => (
-              <View key={mover.exerciseId} style={styles.moverRow}>
-                <Text
-                  style={[
-                    styles.moverPct,
-                    mover.growthPct < 0 && styles.moverPctDown,
-                    mover.isPr && styles.gold,
-                  ]}
-                >
-                  {pct(mover.growthPct)}
-                </Text>
-                <Text style={styles.moverName}>{nameOf(mover.exerciseId)}</Text>
-                {mover.isPr && <Text style={styles.prChip}>★ PR</Text>}
-              </View>
-            ))}
-
-            <Text style={styles.method}>
-              GROWTH = EST. 1RM (EPLEY), LAST TWO SESSIONS OF EACH LIFT
-            </Text>
-          </>
+            <View style={styles.divider} />
+            <View style={styles.cardFooter}>
+              <Text style={styles.footerText}>
+                EST. 1RM (EPLEY) · {ABOUT.makerLink} · REV{' '}
+                {Constants.expoConfig?.version ?? '0.0.0'}
+              </Text>
+            </View>
+          </View>
         )}
-
-        {/* Share footer: a screenshot of this screen carries its provenance. */}
-        <View style={styles.footerPlate}>
-          <Text style={styles.footerText}>
-            BALLAST · REV {Constants.expoConfig?.version ?? '0.0.0'} · {ABOUT.makerLink}
-          </Text>
-        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -149,28 +166,41 @@ const styles = StyleSheet.create({
     fontSize: fontSize.label,
     letterSpacing: 1,
   },
-  titleRow: {
+  emptyNote: {
+    color: palette.copper,
+    fontFamily: fontFamily.mono,
+    fontSize: fontSize.caption,
+    marginTop: spacing.md,
+  },
+  // The shareable frame: everything a posted screenshot needs, nothing else.
+  card: {
+    borderWidth: 1,
+    borderColor: palette.slate,
+    borderRadius: 4,
+    backgroundColor: palette.surface,
+    padding: spacing.lg,
+    marginTop: spacing.sm,
+  },
+  cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'baseline',
-    marginTop: spacing.sm,
-    marginBottom: spacing.lg,
   },
-  kicker: {
-    color: palette.slate,
+  wordmark: {
+    color: palette.textPrimary,
     fontFamily: fontFamily.display,
     fontSize: fontSize.label,
-    letterSpacing: 2,
+    letterSpacing: 3,
   },
   window: {
     color: palette.copper,
     fontFamily: fontFamily.mono,
     fontSize: fontSize.caption,
   },
-  emptyNote: {
-    color: palette.copper,
-    fontFamily: fontFamily.mono,
-    fontSize: fontSize.caption,
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: palette.slate,
+    marginVertical: spacing.md,
   },
   prHeadline: {
     color: palette.gold,
@@ -178,7 +208,7 @@ const styles = StyleSheet.create({
     fontSize: fontSize.body,
     letterSpacing: 2,
     textAlign: 'center',
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
   hero: {
     alignItems: 'center',
@@ -207,30 +237,14 @@ const styles = StyleSheet.create({
   gold: {
     color: palette.gold,
   },
-  volumeLine: {
-    color: palette.copper,
-    fontFamily: fontFamily.mono,
-    fontSize: fontSize.label,
-    textAlign: 'center',
-    marginBottom: spacing.lg,
+  moverBlock: {
+    marginBottom: spacing.md,
   },
-  moverRow: {
+  moverLine: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'baseline',
-    gap: spacing.sm,
-    minHeight: touchTarget.secondaryMinPt / 2,
-    paddingVertical: spacing.xs,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: palette.surface,
-  },
-  moverPct: {
-    color: palette.schematicCyan,
-    fontFamily: fontFamily.monoBold,
-    fontSize: fontSize.body,
-    minWidth: 76,
-  },
-  moverPctDown: {
-    color: palette.slate,
+    marginBottom: spacing.xs,
   },
   moverName: {
     color: palette.textPrimary,
@@ -238,24 +252,28 @@ const styles = StyleSheet.create({
     fontSize: fontSize.label,
     flexShrink: 1,
   },
-  prChip: {
-    color: palette.gold,
-    fontFamily: fontFamily.display,
-    fontSize: fontSize.caption,
-    letterSpacing: 1,
+  moverPct: {
+    fontFamily: fontFamily.monoBold,
+    fontSize: fontSize.label,
+    marginLeft: spacing.sm,
   },
-  method: {
-    color: palette.slate,
+  barTrack: {
+    height: 3,
+    backgroundColor: palette.gunmetal,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  barFill: {
+    height: 3,
+  },
+  volumeLine: {
+    color: palette.copper,
     fontFamily: fontFamily.mono,
-    fontSize: fontSize.caption,
+    fontSize: fontSize.label,
     textAlign: 'center',
-    marginTop: spacing.lg,
+    marginTop: spacing.sm,
   },
-  footerPlate: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: palette.slate,
-    marginTop: spacing.xl,
-    paddingTop: spacing.sm,
+  cardFooter: {
     alignItems: 'center',
   },
   footerText: {
@@ -263,5 +281,6 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.mono,
     fontSize: fontSize.caption,
     letterSpacing: 1,
+    textAlign: 'center',
   },
 });
