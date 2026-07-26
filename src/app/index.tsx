@@ -72,6 +72,13 @@ export default function HomeScreen() {
           </Text>
         </Pressable>
         <Pressable
+          testID="open-review"
+          onPress={() => router.push('/review')}
+          style={(state) => [styles.reviewButton, pressFeedback(state)]}
+        >
+          <Text style={styles.reviewLabel}>WEEK REVIEW</Text>
+        </Pressable>
+        <Pressable
           testID="open-history"
           onPress={() => router.push('/history')}
           style={(state) => [styles.historyButton, pressFeedback(state)]}
@@ -133,6 +140,23 @@ const styles = StyleSheet.create({
     color: palette.schematicCyan,
     fontFamily: fontFamily.display,
     fontSize: fontSize.body,
+    letterSpacing: 1,
+  },
+  // Copper: the palette's progression-indicator accent — review IS progression.
+  reviewButton: {
+    minHeight: touchTarget.secondaryMinPt,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: palette.copper,
+    borderRadius: 4,
+    backgroundColor: palette.surface,
+    marginTop: spacing.sm,
+  },
+  reviewLabel: {
+    color: palette.copper,
+    fontFamily: fontFamily.display,
+    fontSize: fontSize.label,
     letterSpacing: 1,
   },
   historyButton: {
