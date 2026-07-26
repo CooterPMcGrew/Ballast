@@ -3,8 +3,7 @@
   "main": "expo-router/entry",
   "version": "0.3.0",
   "dependencies": {
-    "@expo-google-fonts/chakra-petch": "^0.4.1",
-    "@expo-google-fonts/ibm-plex-mono": "^0.4.1",
+    "@expo-google-fonts/jetbrains-mono": "^0.4.1",
     "expo": "~57.0.4",
     "expo-constants": "~57.0.3",
     "expo-font": "~57.0.0",

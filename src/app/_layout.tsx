@@ -1,11 +1,8 @@
 import {
-  ChakraPetch_400Regular,
-  ChakraPetch_600SemiBold,
-} from '@expo-google-fonts/chakra-petch';
-import {
-  IBMPlexMono_400Regular,
-  IBMPlexMono_600SemiBold,
-} from '@expo-google-fonts/ibm-plex-mono';
+  JetBrainsMono_400Regular,
+  JetBrainsMono_700Bold,
+  JetBrainsMono_800ExtraBold,
+} from '@expo-google-fonts/jetbrains-mono';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -24,10 +21,9 @@ export default function RootLayout() {
   const hydrated = useAppStore((state) => state.hydrated);
   const hydrate = useAppStore((state) => state.hydrate);
   const [fontsLoaded, fontError] = useFonts({
-    ChakraPetch_400Regular,
-    ChakraPetch_600SemiBold,
-    IBMPlexMono_400Regular,
-    IBMPlexMono_600SemiBold,
+    JetBrainsMono_400Regular,
+    JetBrainsMono_700Bold,
+    JetBrainsMono_800ExtraBold,
   });
 
   useEffect(() => {

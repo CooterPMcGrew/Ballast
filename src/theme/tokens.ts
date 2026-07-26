@@ -24,14 +24,15 @@ export const palette = {
   textPrimary: '#E6EDF3',
 } as const;
 
-// Chakra Petch = labels/buttons/headings; IBM Plex Mono = ALL numeric data
-// (loads, reps, timers, dates). Family names must match the keys registered
-// with useFonts() in the root layout.
+// One family everywhere: JetBrains Mono — the type developers live in.
+// All-mono UI reads as instrument panel / terminal, which IS the Exposed
+// Mechanism aesthetic; weight (not family) carries the hierarchy. Token
+// names kept so call sites didn't change; names must match useFonts().
 export const fontFamily = {
-  display: 'ChakraPetch_600SemiBold',
-  displayRegular: 'ChakraPetch_400Regular',
-  mono: 'IBMPlexMono_400Regular',
-  monoBold: 'IBMPlexMono_600SemiBold',
+  display: 'JetBrainsMono_700Bold',
+  displayRegular: 'JetBrainsMono_400Regular',
+  mono: 'JetBrainsMono_400Regular',
+  monoBold: 'JetBrainsMono_800ExtraBold',
 } as const;
 
 // Type scale (pt). The two numeral sizes exist because prescribed load/reps
