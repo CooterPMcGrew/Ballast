@@ -82,6 +82,7 @@ export default function SessionScreen() {
   // The ranked list starts open (it's the point); the rest starts folded.
   const [showRanked, setShowRanked] = useState(true);
   const [showOffTarget, setShowOffTarget] = useState(false);
+  const [showSetLog, setShowSetLog] = useState(false);
 
   // Focus param: one muscle or a comma-joined preset ("chest,shoulders,triceps").
   const targetGroups = (muscleGroup ?? '')
@@ -363,24 +364,6 @@ export default function SessionScreen() {
           </>
         )}
 
-        {(activeSession?.setLog.length ?? 0) > 0 && (
-          <>
-            <Text style={styles.sectionTitle}>SET LOG</Text>
-            {activeSession?.setLog.map((entry, index) => (
-              <View
-                key={`${entry.completedAtIso}-${index}`}
-                style={[styles.logRow, { borderLeftColor: feedbackColor[entry.feedback] }]}
-              >
-                <Text style={styles.logText}>
-                  {index + 1}. {getExerciseById(entry.exerciseId)?.name ?? entry.exerciseId} —{' '}
-                  {formatLoad(entry.loadKg, unitPreference)} {unitSuffix(unitPreference)} ×{' '}
-                  {entry.reps}
-                </Text>
-              </View>
-            ))}
-          </>
-        )}
-
         {completedExercises.length > 0 && (
           <>
             <Text style={styles.sectionTitle}>DONE TODAY</Text>
@@ -396,6 +379,35 @@ export default function SessionScreen() {
         <Pressable testID="end-session" onPress={onEndSessionShared} style={(state) => [styles.endButton, pressFeedback(state)]}>
           <Text style={styles.endButtonLabel}>END SESSION</Text>
         </Pressable>
+
+        {/* Very bottom + folded by default: the record is there when wanted,
+            never between the user and END SESSION. */}
+        {(activeSession?.setLog.length ?? 0) > 0 && (
+          <>
+            <Pressable
+              testID="toggle-setlog"
+              onPress={() => setShowSetLog((open) => !open)}
+              style={(state) => [styles.sectionToggle, pressFeedback(state)]}
+            >
+              <Text style={styles.sectionTitle}>
+                {showSetLog ? '▾' : '▸'} SET LOG ({activeSession?.setLog.length})
+              </Text>
+            </Pressable>
+            {showSetLog &&
+              activeSession?.setLog.map((entry, index) => (
+                <View
+                  key={`${entry.completedAtIso}-${index}`}
+                  style={[styles.logRow, { borderLeftColor: feedbackColor[entry.feedback] }]}
+                >
+                  <Text style={styles.logText}>
+                    {index + 1}. {getExerciseById(entry.exerciseId)?.name ?? entry.exerciseId} —{' '}
+                    {formatLoad(entry.loadKg, unitPreference)} {unitSuffix(unitPreference)} ×{' '}
+                    {entry.reps}
+                  </Text>
+                </View>
+              ))}
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

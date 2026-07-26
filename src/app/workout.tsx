@@ -85,13 +85,14 @@ export default function WorkoutScreen() {
 
   useEffect(() => {
     if (!exercise) return;
-    if (!active) {
+    if (!active || active.exerciseId !== exercise.id) {
+      // The URL is the user's intent: navigating to a different exercise
+      // SWITCHES to it (in-flight prescription discarded, same contract as
+      // CANCEL; completed sets stay in the session log). The old "snap the
+      // URL back" behavior silently mislogged sets under the previous
+      // exercise. Superset swaps never hit this branch — their handlers
+      // sync the param explicitly before this effect runs.
       startExercise(exercise.id);
-    } else if (active.exerciseId !== exercise.id) {
-      // The store leads during superset swaps and hand-offs; the URL follows.
-      // (Also means navigating to another exercise mid-set can't silently
-      // abandon work — CANCEL EXERCISE is the explicit path out.)
-      router.setParams({ exerciseId: active.exerciseId });
     }
   }, [exercise, active, startExercise]);
 
@@ -155,14 +156,19 @@ export default function WorkoutScreen() {
         router.back();
         return;
       }
-      setPhase('working'); // partner continues (URL syncs via the effect)
+      // Superset hand-off: sync the URL in the same tick so the intent
+      // effect sees param === active and never mistakes this for a switch.
+      router.setParams({ exerciseId: nextActive.exerciseId });
+      setPhase('working');
       return;
     }
 
-    if (useAppStore.getState().pausedExercise) {
+    const partner = useAppStore.getState().pausedExercise;
+    if (partner) {
       // Superset: alternate immediately; rest only after the second leg,
       // so the rest period covers the PAIR, not each half.
       swapSupersetPartner();
+      router.setParams({ exerciseId: partner.exerciseId });
       if (finishedLeg === 1) {
         startRest();
       } else {
