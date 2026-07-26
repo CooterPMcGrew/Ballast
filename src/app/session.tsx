@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { LinearTransition } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -89,7 +89,14 @@ export default function SessionScreen() {
     .filter((group): group is MuscleGroup => MUSCLE_GROUPS.includes(group as MuscleGroup));
   const focusKey = targetGroups.join(',');
 
+  // Once END SESSION fires, this mount must never start another session:
+  // the auto-start effect below re-runs when activeSession flips to null
+  // and — without this guard — resurrects the just-ended session if it
+  // wins the race against navigation ("sometimes shows RESUME SESSION").
+  const sessionEnded = useRef(false);
+
   useEffect(() => {
+    if (sessionEnded.current) return;
     if (targetGroups.length > 0 && activeSession?.muscleGroups.join(',') !== focusKey) {
       startSession(targetGroups);
     }
@@ -103,6 +110,7 @@ export default function SessionScreen() {
     targetGroups.join(' · ').toUpperCase();
 
   const onEndSessionShared = () => {
+    sessionEnded.current = true;
     endSession();
     // replace, not push: the ended session must not sit on the back stack.
     router.replace('/summary');
