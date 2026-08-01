@@ -7,10 +7,13 @@ import * as SQLite from 'expo-sqlite';
 
 import {
   EQUIPMENT_TAGS,
+  MUSCLE_GROUPS,
   UNIT_PREFERENCES,
   type CustomGymState,
+  type CustomSplit,
   type EquipmentTag,
   type Exercise,
+  type MuscleGroup,
   type SetFeedback,
   type UnitPreference,
 } from '@/domain/types';
@@ -32,6 +35,9 @@ const SETTING_CUSTOM_GYM = 'customGymJson';
 // does not solve relational queries over customs. Root fix: migrate into
 // the exercises tables when they become the authoritative store (v2).
 const SETTING_CUSTOM_EXERCISES = 'customExercisesJson';
+// Same settings-blob workaround as customs above: a split is a name plus a
+// group list, with no relational query behind it worth a table.
+const SETTING_CUSTOM_SPLITS = 'customSplitsJson';
 
 interface SessionRow {
   exercise_id: string;
@@ -132,6 +138,7 @@ export function createDriver(): PersistenceDriver {
         unitPreference: parseUnit(settings.get(SETTING_UNIT)),
         customGym: parseCustomGym(settings.get(SETTING_CUSTOM_GYM)),
         customExercises: parseCustomExercises(settings.get(SETTING_CUSTOM_EXERCISES)),
+        customSplits: parseCustomSplits(settings.get(SETTING_CUSTOM_SPLITS)),
         sessionHistoryByExercise,
       };
     },
@@ -154,6 +161,10 @@ export function createDriver(): PersistenceDriver {
         SETTING_CUSTOM_EXERCISES,
         JSON.stringify(customExercises),
       );
+    },
+
+    async saveCustomSplits(customSplits) {
+      await upsertSetting(requireDb(), SETTING_CUSTOM_SPLITS, JSON.stringify(customSplits));
     },
 
     async appendSession(row: PersistedSessionRow) {
@@ -234,6 +245,32 @@ function parseCustomExercises(raw: string | undefined): Exercise[] | null {
     );
   } catch (error) {
     console.error('persistence: corrupt custom exercises, ignoring', error);
+    return null;
+  }
+}
+
+/**
+ * Unknown muscle groups are dropped, not trusted: a stored split outlives
+ * any rename of the taxonomy, and an unknown group would reach the
+ * recommender as a focus that matches nothing. A split left with no groups
+ * is discarded entirely.
+ */
+function parseCustomSplits(raw: string | undefined): CustomSplit[] | null {
+  if (raw === undefined) return null;
+  try {
+    const parsed = JSON.parse(raw) as CustomSplit[];
+    if (!Array.isArray(parsed)) throw new Error('not an array');
+    return parsed
+      .filter((entry) => typeof entry?.id === 'string' && typeof entry?.name === 'string')
+      .map((entry) => ({
+        ...entry,
+        muscleGroups: (entry.muscleGroups ?? []).filter((group): group is MuscleGroup =>
+          MUSCLE_GROUPS.includes(group),
+        ),
+      }))
+      .filter((entry) => entry.muscleGroups.length > 0);
+  } catch (error) {
+    console.error('persistence: corrupt custom splits, ignoring', error);
     return null;
   }
 }

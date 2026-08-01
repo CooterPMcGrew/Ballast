@@ -43,6 +43,9 @@ export default function SettingsScreen() {
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const customExercises = useAppStore((state) => state.customExercises);
   const removeCustomExercise = useAppStore((state) => state.removeCustomExercise);
+  const customSplits = useAppStore((state) => state.customSplits);
+  const removeCustomSplit = useAppStore((state) => state.removeCustomSplit);
+  const [confirmingSplitId, setConfirmingSplitId] = useState<string | null>(null);
 
   // Submission = a mail the USER consciously sends; the app itself never
   // phones home. Opens their mail client pre-filled for maker review.
@@ -68,6 +71,15 @@ export default function SettingsScreen() {
     }
     setConfirmingDeleteId(null);
     removeCustomExercise(exerciseId);
+  };
+
+  const onDeleteSplit = (splitId: string) => {
+    if (confirmingSplitId !== splitId) {
+      setConfirmingSplitId(splitId);
+      return;
+    }
+    setConfirmingSplitId(null);
+    removeCustomSplit(splitId);
   };
 
   const toggleEquipment = (tag: EquipmentTag) => {
@@ -195,6 +207,29 @@ export default function SettingsScreen() {
           active={false}
           onPress={() => router.push('/custom')}
         />
+
+        {/* Splits are BUILT on the session picker, where the need is felt;
+            only their removal lives here, with the other config. */}
+        <Text style={styles.kicker}>MY SPLITS</Text>
+        {customSplits.length === 0 && (
+          <Text style={styles.note}>
+            none yet — build one from + NEW SPLIT on the training screen
+          </Text>
+        )}
+        {customSplits.map((split) => (
+          <View key={split.id} style={styles.customRow}>
+            <View style={styles.customInfo}>
+              <Text style={styles.customName}>{split.name}</Text>
+              <Text style={styles.customMuscles}>{split.muscleGroups.join(' · ')}</Text>
+            </View>
+            <Chip
+              testID={`delete-split-${split.id}`}
+              label={confirmingSplitId === split.id ? 'SURE?' : 'DELETE'}
+              active={confirmingSplitId === split.id}
+              onPress={() => onDeleteSplit(split.id)}
+            />
+          </View>
+        ))}
 
         {/* Export only. The demo-history and erase-all buttons were
             prototyping scaffolding and are gone (maintainer call). */}

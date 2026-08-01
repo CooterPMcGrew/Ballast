@@ -26,12 +26,14 @@ import type { TimestampedSessionResult } from '@/persistence/types';
 import {
   CUSTOM_GYM_PROFILE_ID,
   type CustomGymState,
+  type CustomSplit,
   type Exercise,
   type GymProfile,
   type MuscleGroup,
   type SetFeedback,
   type UnitPreference,
 } from '@/domain/types';
+import { deriveSplitName } from '@/domain/splits';
 import { steppedLoadKg } from '@/domain/units';
 
 /** One exercise mid-workout: the live prescription plus set-by-set feedback. */
@@ -127,6 +129,12 @@ interface AppState {
    * keeps hand-made entries from poisoning the recommender).
    */
   customExercises: Exercise[];
+  /**
+   * User-built splits, local to this device. Shown alongside SPLIT_PRESETS
+   * on the session picker; they need no engine support because a split is
+   * only ever a group list handed to the recommender.
+   */
+  customSplits: CustomSplit[];
 
   /** Load persisted state; call once from the root layout. */
   hydrate: () => Promise<void>;
@@ -146,6 +154,13 @@ interface AppState {
     secondaryMuscles: MuscleGroup[];
   }) => string | null;
   removeCustomExercise: (exerciseId: string) => void;
+  /**
+   * Add a split. An empty name derives one from the groups (deriveSplitName)
+   * — naming is optional; picking the muscles is the intent. Returns the new
+   * split's id, or null if no muscle group was chosen.
+   */
+  addCustomSplit: (input: { name: string; muscleGroups: MuscleGroup[] }) => string | null;
+  removeCustomSplit: (splitId: string) => void;
   /**
    * Record a workout that happened before it could be tracked. All entries
    * share one moment (the chosen day); they land in history by wall clock,
@@ -241,6 +256,7 @@ export const useAppStore = create<AppState>((set, get) => {
   // Bodyweight-only until described — the one tag every gym has.
   customGym: { enabled: false, equipment: ['bodyweight'] },
   customExercises: [],
+  customSplits: [],
 
   hydrate: async () => {
     try {
@@ -253,6 +269,7 @@ export const useAppStore = create<AppState>((set, get) => {
         unitPreference: persisted.unitPreference ?? 'kg',
         customGym: persisted.customGym ?? { enabled: false, equipment: ['bodyweight'] },
         customExercises: persisted.customExercises ?? [],
+        customSplits: persisted.customSplits ?? [],
       });
       registerCustomExercises(persisted.customExercises ?? []);
     } catch (error) {
@@ -297,18 +314,11 @@ export const useAppStore = create<AppState>((set, get) => {
       console.error('addCustomExercise: name, equipment, and a primary muscle are required');
       return null;
     }
-    // "custom-" prefix keeps user ids out of the stock namespace forever.
-    const slug = name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
-    const taken = new Set(
+    const id = uniqueId(
+      'custom',
+      name,
       [...EXERCISE_CATALOG, ...get().customExercises].map((exercise) => exercise.id),
     );
-    let id = `custom-${slug}`;
-    for (let suffix = 2; taken.has(id); suffix++) {
-      id = `custom-${slug}-${suffix}`;
-    }
     // No muscleContributions on purpose: derived shares only (see AppState doc).
     const exercise: Exercise = {
       id,
@@ -336,6 +346,33 @@ export const useAppStore = create<AppState>((set, get) => {
     persistence
       .saveCustomExercises(customExercises)
       .catch((error) => console.error('persistence: custom exercise save failed', error));
+  },
+
+  addCustomSplit: (input) => {
+    if (input.muscleGroups.length === 0) {
+      console.error('addCustomSplit: at least one muscle group is required');
+      return null;
+    }
+    const name = input.name.trim() === '' ? deriveSplitName(input.muscleGroups) : input.name.trim();
+    const id = uniqueId(
+      'split',
+      name,
+      get().customSplits.map((split) => split.id),
+    );
+    const customSplits = [...get().customSplits, { id, name, muscleGroups: input.muscleGroups }];
+    set({ customSplits });
+    persistence
+      .saveCustomSplits(customSplits)
+      .catch((error) => console.error('persistence: custom split save failed', error));
+    return id;
+  },
+
+  removeCustomSplit: (splitId) => {
+    const customSplits = get().customSplits.filter((split) => split.id !== splitId);
+    set({ customSplits });
+    persistence
+      .saveCustomSplits(customSplits)
+      .catch((error) => console.error('persistence: custom split save failed', error));
   },
 
   logPastWorkout: async (completedAtIso, entries) => {
@@ -655,6 +692,24 @@ export function loadStepKgForExercise(exerciseId: string): number {
   return exercise
     ? progressionWindowForExercise(exercise).incrementKg
     : PROGRESSION_BY_CLASS.compound.incrementKg;
+}
+
+/**
+ * A collision-free id derived from a display name. The prefix keeps
+ * user-made ids out of the stock namespace forever ("custom-" exercises,
+ * "split-" splits); a numeric suffix settles same-name collisions.
+ */
+function uniqueId(prefix: string, name: string, taken: readonly string[]): string {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  const used = new Set(taken);
+  let id = `${prefix}-${slug}`;
+  for (let suffix = 2; used.has(id); suffix++) {
+    id = `${prefix}-${slug}-${suffix}`;
+  }
+  return id;
 }
 
 /** Kill 0.1+0.2 artifacts before they reach the display or history. */

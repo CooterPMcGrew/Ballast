@@ -10,6 +10,7 @@ import { DEFAULT_GYM_PROFILES } from '@/data/defaultGymProfiles';
 import { EXERCISE_CATALOG, getExerciseById } from '@/data/exerciseCatalog';
 import { CUSTOM_GYM_PROFILE_ID, SPLIT_PRESETS } from '@/domain/types';
 import { filterAvailableExercises } from '@/domain/equipment';
+import { focusLabelForGroups } from '@/domain/splits';
 import {
   COMPONENT_LABELS,
   MUSCLE_COMPONENTS_BY_GROUP,
@@ -70,6 +71,7 @@ export default function SessionScreen() {
   const historyByExercise = useAppStore((state) => state.sessionHistoryByExercise);
   const unitPreference = useAppStore((state) => state.unitPreference);
   const customExercises = useAppStore((state) => state.customExercises);
+  const customSplits = useAppStore((state) => state.customSplits);
   const supersetArmed = useAppStore((state) => state.supersetArmed);
   const supersetPendingId = useAppStore((state) => state.supersetPendingId);
   const toggleSupersetArm = useAppStore((state) => state.toggleSupersetArm);
@@ -105,10 +107,25 @@ export default function SessionScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusKey, activeSession, startSession]);
 
-  // Preset label when the focus matches one ("PUSH"), else the group list.
-  const focusLabel =
-    Object.entries(SPLIT_PRESETS).find(([, groups]) => groups.join(',') === focusKey)?.[0] ??
-    targetGroups.join(' · ').toUpperCase();
+  // Stock preset name, else the user's own split name, else derived.
+  const focusLabel = focusLabelForGroups(targetGroups, customSplits);
+
+  // Stock splits first, then the user's — the row reads as "what ships" then
+  // "what I built", and stock ordering never shifts under them.
+  const splitChips = [
+    ...Object.entries(SPLIT_PRESETS).map(([name, groups]) => ({
+      key: `preset-${name}`,
+      testID: `split-${name}`,
+      name,
+      groups: groups.join(','),
+    })),
+    ...customSplits.map((split) => ({
+      key: split.id,
+      testID: `split-${split.id}`,
+      name: split.name.toUpperCase(),
+      groups: split.muscleGroups.join(','),
+    })),
+  ];
 
   const onEndSessionShared = () => {
     sessionEnded.current = true;
@@ -168,21 +185,29 @@ export default function SessionScreen() {
             {activeSession ? 'SWITCH FOCUS' : 'WHAT ARE YOU TRAINING?'}
           </Text>
           <View style={styles.chipRow}>
-            {Object.entries(SPLIT_PRESETS).map(([name, groups]) => (
+            {splitChips.map((split) => (
               <Pressable
-                key={name}
-                testID={`split-${name}`}
+                key={split.key}
+                testID={split.testID}
                 onPress={() =>
                   router.replace({
                     pathname: '/session',
-                    params: { muscleGroup: groups.join(',') },
+                    params: { muscleGroup: split.groups },
                   })
                 }
                 style={(state) => [styles.chip, pressFeedback(state)]}
               >
-                <Text style={styles.chipLabel}>{name}</Text>
+                <Text style={styles.chipLabel}>{split.name}</Text>
               </Pressable>
             ))}
+            {/* Build one where the need is felt, not three screens away. */}
+            <Pressable
+              testID="new-split"
+              onPress={() => router.push('/split')}
+              style={(state) => [styles.chip, styles.chipNew, pressFeedback(state)]}
+            >
+              <Text style={[styles.chipLabel, styles.chipLabelNew]}>+ NEW SPLIT</Text>
+            </Pressable>
           </View>
 
           <Text style={styles.kicker}>OR ONE MUSCLE</Text>
@@ -462,6 +487,12 @@ const styles = StyleSheet.create({
   chipActive: {
     borderColor: palette.schematicCyan,
   },
+  // Copper marks the one chip that builds rather than selects — it must not
+  // read as another split sitting in the row.
+  chipNew: {
+    borderColor: palette.copper,
+    borderStyle: 'dashed',
+  },
   chipLabel: {
     color: palette.slate,
     fontFamily: fontFamily.display,
@@ -471,6 +502,9 @@ const styles = StyleSheet.create({
   },
   chipLabelActive: {
     color: palette.schematicCyan,
+  },
+  chipLabelNew: {
+    color: palette.copper,
   },
   muscleGrid: {
     flexDirection: 'row',

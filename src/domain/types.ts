@@ -35,6 +35,18 @@ export const SPLIT_PRESETS = {
 } as const satisfies Record<string, readonly MuscleGroup[]>;
 
 /**
+ * A user-built split. Structurally identical to a SPLIT_PRESETS entry — a
+ * named multi-group focus — which is why one needs no engine support: the
+ * session route already accepts an arbitrary group list, so "back + glutes"
+ * ranks exactly the way PUSH does.
+ */
+export interface CustomSplit {
+  id: string;
+  name: string;
+  muscleGroups: MuscleGroup[];
+}
+
+/**
  * Components subdivide a group only where programming actually differs
  * (CLAUDE.md §6.5 — taxonomy must earn its keep in fatigue accounting).
  * Shoulders/chest/back train regionally (a press leaves side/rear delts

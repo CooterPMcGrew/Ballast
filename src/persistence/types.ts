@@ -1,7 +1,7 @@
 // Persistence contract. The store is the only consumer; drivers are chosen
 // per platform by Metro file resolution (driver.ts native, driver.web.ts web).
 
-import type { CustomGymState, Exercise, UnitPreference } from '@/domain/types';
+import type { CustomGymState, CustomSplit, Exercise, UnitPreference } from '@/domain/types';
 import type { ExerciseSessionResult } from '@/engine/progression';
 
 /**
@@ -24,6 +24,8 @@ export interface PersistedState {
   customGym: CustomGymState | null;
   /** User-defined exercises (local-only; contributions always derived). */
   customExercises: Exercise[] | null;
+  /** User-built splits (local-only). null = nothing stored yet. */
+  customSplits: CustomSplit[] | null;
   /**
    * Per exercise, oldest → newest BY WALL CLOCK — the order the engine
    * expects. Not insert order: a back-dated row from the past-workout log
@@ -41,6 +43,7 @@ export interface PersistenceDriver {
   saveUnitPreference(unit: UnitPreference): Promise<void>;
   saveCustomGym(customGym: CustomGymState): Promise<void>;
   saveCustomExercises(customExercises: Exercise[]): Promise<void>;
+  saveCustomSplits(customSplits: CustomSplit[]): Promise<void>;
   /** Rows may be back-dated (past-workout log); loads sort them, not this. */
   appendSession(row: PersistedSessionRow): Promise<void>;
   /**

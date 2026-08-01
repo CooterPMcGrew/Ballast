@@ -4,7 +4,7 @@
 // alternative if web ever becomes a real target: expo-sqlite's wasm web
 // support. Until then this stays a flat JSON blob in localStorage.
 
-import type { CustomGymState, Exercise, UnitPreference } from '@/domain/types';
+import type { CustomGymState, CustomSplit, Exercise, UnitPreference } from '@/domain/types';
 import type {
   PersistedSessionRow,
   PersistedState,
@@ -19,6 +19,7 @@ interface StoredBlob {
   unitPreference?: UnitPreference | null;
   customGym?: CustomGymState | null;
   customExercises?: Exercise[] | null;
+  customSplits?: CustomSplit[] | null;
   sessions: PersistedSessionRow[];
 }
 
@@ -72,6 +73,7 @@ export function createDriver(): PersistenceDriver {
         unitPreference: blob.unitPreference ?? null,
         customGym: blob.customGym ?? null,
         customExercises: blob.customExercises ?? null,
+        customSplits: blob.customSplits ?? null,
         sessionHistoryByExercise,
       };
     },
@@ -97,6 +99,12 @@ export function createDriver(): PersistenceDriver {
     async saveCustomExercises(customExercises: Exercise[]) {
       const blob = readBlob();
       blob.customExercises = customExercises;
+      writeBlob(blob);
+    },
+
+    async saveCustomSplits(customSplits: CustomSplit[]) {
+      const blob = readBlob();
+      blob.customSplits = customSplits;
       writeBlob(blob);
     },
 
