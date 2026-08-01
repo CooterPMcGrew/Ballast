@@ -98,6 +98,10 @@ export function createDriver(): PersistenceDriver {
       `);
     },
 
+    // Ordered by wall clock, not insert id: the past-workout log writes
+    // back-dated rows, and the engine reads the tail of each exercise's
+    // history as its most recent session. ISO-8601 UTC strings sort
+    // lexicographically in the same order as the instants they name.
     async loadState(): Promise<PersistedState> {
       const database = requireDb();
 
@@ -108,7 +112,7 @@ export function createDriver(): PersistenceDriver {
 
       const rows = await database.getAllAsync<SessionRow>(
         `SELECT exercise_id, load_kg, reps_achieved, feedback, completed_at_iso
-         FROM exercise_sessions ORDER BY id ASC`,
+         FROM exercise_sessions ORDER BY completed_at_iso ASC, id ASC`,
       );
 
       const sessionHistoryByExercise: Record<string, TimestampedSessionResult[]> = {};
@@ -165,10 +169,30 @@ export function createDriver(): PersistenceDriver {
       );
     },
 
+    async deleteSession(row: PersistedSessionRow) {
+      // Delete by id from a single-row subquery: plain `DELETE ... LIMIT 1`
+      // needs a compile flag (SQLITE_ENABLE_UPDATE_DELETE_LIMIT) that this
+      // build does not carry, and an unbounded DELETE would take every
+      // duplicate of a repeated lift with it.
+      await requireDb().runAsync(
+        `DELETE FROM exercise_sessions WHERE id = (
+           SELECT id FROM exercise_sessions
+           WHERE exercise_id = ? AND load_kg = ? AND reps_achieved = ?
+             AND feedback = ? AND completed_at_iso = ?
+           ORDER BY id DESC LIMIT 1
+         )`,
+        row.exerciseId,
+        row.loadKg,
+        row.repsAchieved,
+        row.feedback,
+        row.completedAtIso,
+      );
+    },
+
     async loadAllSessionRows(): Promise<PersistedSessionRow[]> {
       const rows = await requireDb().getAllAsync<SessionRow>(
         `SELECT exercise_id, load_kg, reps_achieved, feedback, completed_at_iso
-         FROM exercise_sessions ORDER BY id ASC`,
+         FROM exercise_sessions ORDER BY completed_at_iso ASC, id ASC`,
       );
       return rows.map((row) => ({
         exerciseId: row.exercise_id,
@@ -177,10 +201,6 @@ export function createDriver(): PersistenceDriver {
         feedback: row.feedback as SetFeedback,
         completedAtIso: row.completed_at_iso,
       }));
-    },
-
-    async clearAllSessions() {
-      await requireDb().runAsync(`DELETE FROM exercise_sessions`);
     },
   };
 }

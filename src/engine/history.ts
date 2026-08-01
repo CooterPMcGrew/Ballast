@@ -32,6 +32,25 @@ export function dailyVolumeKg(
   return totals;
 }
 
+/**
+ * Insert one row into a per-exercise history that must stay oldest → newest
+ * BY WALL CLOCK. The engine reads the last element as "the most recent
+ * session", so a back-dated lift (past-workout log) appended blindly would
+ * hijack the next prescription. Ties keep insertion order — several lifts
+ * logged against the same day stay in the order they were entered.
+ */
+export function insertByCompletedAt<T extends { completedAtIso: string }>(
+  history: readonly T[],
+  row: T,
+): T[] {
+  const atMs = Date.parse(row.completedAtIso);
+  let index = history.length;
+  while (index > 0 && Date.parse(history[index - 1]!.completedAtIso) > atMs) {
+    index--;
+  }
+  return [...history.slice(0, index), row, ...history.slice(index)];
+}
+
 function startOfLocalDayMs(ms: number): number {
   const date = new Date(ms);
   date.setHours(0, 0, 0, 0);

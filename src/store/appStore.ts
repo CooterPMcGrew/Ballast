@@ -12,7 +12,6 @@ import {
   SETS_PER_EXERCISE_MAX,
 } from '@/config/progressionConfig';
 import { DEFAULT_GYM_PROFILES } from '@/data/defaultGymProfiles';
-import { buildDemoHistory } from '@/data/demoHistory';
 import {
   EXERCISE_CATALOG,
   getExerciseById,
@@ -20,6 +19,7 @@ import {
 } from '@/data/exerciseCatalog';
 import { prescribeNextSession, seedPlan, worstFeedback } from '@/engine/progression';
 import { estimateSessionEnergy, type EnergyEstimate } from '@/engine/energy';
+import { insertByCompletedAt } from '@/engine/history';
 import { seedLoadKgForExercise } from '@/engine/seeding';
 import { persistence } from '@/persistence';
 import type { TimestampedSessionResult } from '@/persistence/types';
@@ -32,6 +32,7 @@ import {
   type SetFeedback,
   type UnitPreference,
 } from '@/domain/types';
+import { steppedLoadKg } from '@/domain/units';
 
 /** One exercise mid-workout: the live prescription plus set-by-set feedback. */
 export interface ActiveExercise {
@@ -66,6 +67,19 @@ export interface SetLogEntry {
   reps: number;
   feedback: SetFeedback;
   completedAtIso: string;
+}
+
+/**
+ * One hand-entered lift from a workout that happened before the app saw it
+ * (the past-workout log). Same shape the live loop folds into history — a
+ * logged lift is indistinguishable from a tracked one afterwards, by design:
+ * the engine must be able to progress from it.
+ */
+export interface HistoricalEntry {
+  exerciseId: string;
+  loadKg: number;
+  repsAchieved: number;
+  feedback: SetFeedback;
 }
 
 export interface ActiveSession {
@@ -132,10 +146,20 @@ interface AppState {
     secondaryMuscles: MuscleGroup[];
   }) => string | null;
   removeCustomExercise: (exerciseId: string) => void;
-  /** Prototyping aid: write the demo training block into real history. */
-  seedDemoHistory: () => Promise<void>;
-  /** Destructive; Settings gates it behind a two-tap confirm. */
-  clearHistory: () => Promise<void>;
+  /**
+   * Record a workout that happened before it could be tracked. All entries
+   * share one moment (the chosen day); they land in history by wall clock,
+   * not at the tail, so a back-dated lift never hijacks the next
+   * prescription. Resolves false if any row failed to persist.
+   */
+  logPastWorkout: (completedAtIso: string, entries: HistoricalEntry[]) => Promise<boolean>;
+  /**
+   * Erase one recorded lift, by its position in that exercise's history.
+   * The repair path for a mis-entry: a wrong load sits at the tail and drives
+   * every future prescription for that movement, so it must be correctable.
+   * Resolves false if the row could not be removed from storage.
+   */
+  deleteHistoryEntry: (exerciseId: string, index: number) => Promise<boolean>;
   /**
    * Declare or switch today's focus. An already-running session keeps its
    * completed work and clock — only the recommender's target changes.
@@ -154,7 +178,8 @@ interface AppState {
   /** Alternate the pair — caller decides when (after each completed set). */
   swapSupersetPartner: () => void;
   /** Stepper adjustments (zero-precision default path). */
-  adjustLoad: (deltaKg: number) => void;
+  /** One LOAD press. Step size follows the display unit's plate grid. */
+  stepLoad: (direction: 1 | -1) => void;
   adjustReps: (delta: number) => void;
   /** Direct entry via the big-key NumberPad — kg always, caller converts. */
   setLoadKg: (loadKg: number) => void;
@@ -313,25 +338,74 @@ export const useAppStore = create<AppState>((set, get) => {
       .catch((error) => console.error('persistence: custom exercise save failed', error));
   },
 
-  seedDemoHistory: async () => {
-    try {
-      for (const row of buildDemoHistory(Date.now())) {
-        await persistence.appendSession(row);
-      }
-      const persisted = await persistence.loadState();
-      set({ sessionHistoryByExercise: persisted.sessionHistoryByExercise });
-    } catch (error) {
-      console.error('seedDemoHistory failed', error);
+  logPastWorkout: async (completedAtIso, entries) => {
+    if (entries.length === 0) {
+      console.error('logPastWorkout: nothing to log');
+      return false;
     }
+
+    set((state) => {
+      const sessionHistoryByExercise = { ...state.sessionHistoryByExercise };
+      for (const entry of entries) {
+        sessionHistoryByExercise[entry.exerciseId] = insertByCompletedAt(
+          sessionHistoryByExercise[entry.exerciseId] ?? [],
+          {
+            loadKg: entry.loadKg,
+            repsAchieved: entry.repsAchieved,
+            feedback: entry.feedback,
+            completedAtIso,
+          },
+        );
+      }
+      return { sessionHistoryByExercise };
+    });
+
+    // Optimistic in-memory first (same contract as completeSet), then write
+    // through. A failed row stays visible this run but is gone on restart —
+    // hence the honest boolean instead of a silent success.
+    let allPersisted = true;
+    for (const entry of entries) {
+      try {
+        await persistence.appendSession({ ...entry, completedAtIso });
+      } catch (error) {
+        console.error('persistence: past workout save failed', error);
+        allPersisted = false;
+      }
+    }
+    return allPersisted;
   },
 
-  clearHistory: async () => {
-    try {
-      await persistence.clearAllSessions();
-      set({ sessionHistoryByExercise: {} });
-    } catch (error) {
-      console.error('clearHistory failed', error);
+  deleteHistoryEntry: async (exerciseId, index) => {
+    const history = get().sessionHistoryByExercise[exerciseId] ?? [];
+    const row = history[index];
+    if (!row) {
+      console.error(`deleteHistoryEntry: no entry ${index} for "${exerciseId}"`);
+      return false;
     }
+    // Storage first: unlike an append, a failed delete that already vanished
+    // from the screen would come back on restart with no trace of why.
+    try {
+      await persistence.deleteSession({ exerciseId, ...row });
+    } catch (error) {
+      console.error('persistence: history delete failed', error);
+      return false;
+    }
+    set((state) => {
+      const remaining = (state.sessionHistoryByExercise[exerciseId] ?? []).filter(
+        (_, position) => position !== index,
+      );
+      const sessionHistoryByExercise = { ...state.sessionHistoryByExercise };
+      // Drop the key entirely when its last lift goes, so the exercise reads
+      // as never-trained (seeded) rather than as an empty history the engine
+      // would have to special-case.
+      if (remaining.length === 0) {
+        delete sessionHistoryByExercise[exerciseId];
+      } else {
+        sessionHistoryByExercise[exerciseId] = remaining;
+      }
+      return { sessionHistoryByExercise };
+    });
+    return true;
   },
 
   startSession: (muscleGroups) =>
@@ -409,11 +483,19 @@ export const useAppStore = create<AppState>((set, get) => {
         : state,
     ),
 
-  adjustLoad: (deltaKg) =>
+  stepLoad: (direction) =>
     set((state) => {
-      if (!state.activeExercise) return state;
-      const loadKg = Math.max(0, round2(state.activeExercise.loadKg + deltaKg));
-      return { activeExercise: { ...state.activeExercise, loadKg } };
+      const active = state.activeExercise;
+      if (!active) return state;
+      const loadKg = round2(
+        steppedLoadKg(
+          active.loadKg,
+          direction,
+          state.unitPreference,
+          loadStepKgForExercise(active.exerciseId),
+        ),
+      );
+      return { activeExercise: { ...active, loadKg } };
     }),
 
   adjustReps: (delta) =>

@@ -40,6 +40,15 @@ function writeBlob(blob: StoredBlob): void {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(blob));
 }
 
+/**
+ * Oldest → newest by wall clock. Sort is stable, so rows sharing an instant
+ * keep insert order. Back-dated rows (past-workout log) must not land at the
+ * tail — the engine reads the last entry as the most recent session.
+ */
+function byCompletedAt(rows: readonly PersistedSessionRow[]): PersistedSessionRow[] {
+  return [...rows].sort((a, b) => Date.parse(a.completedAtIso) - Date.parse(b.completedAtIso));
+}
+
 export function createDriver(): PersistenceDriver {
   return {
     async init() {
@@ -49,7 +58,7 @@ export function createDriver(): PersistenceDriver {
     async loadState(): Promise<PersistedState> {
       const blob = readBlob();
       const sessionHistoryByExercise: Record<string, TimestampedSessionResult[]> = {};
-      for (const row of blob.sessions) {
+      for (const row of byCompletedAt(blob.sessions)) {
         const { exerciseId, loadKg, repsAchieved, feedback, completedAtIso } = row;
         (sessionHistoryByExercise[exerciseId] ??= []).push({
           loadKg,
@@ -97,14 +106,23 @@ export function createDriver(): PersistenceDriver {
       writeBlob(blob);
     },
 
-    async loadAllSessionRows(): Promise<PersistedSessionRow[]> {
-      return readBlob().sessions;
+    async deleteSession(row: PersistedSessionRow) {
+      const blob = readBlob();
+      const index = blob.sessions.findIndex(
+        (stored) =>
+          stored.exerciseId === row.exerciseId &&
+          stored.loadKg === row.loadKg &&
+          stored.repsAchieved === row.repsAchieved &&
+          stored.feedback === row.feedback &&
+          stored.completedAtIso === row.completedAtIso,
+      );
+      if (index === -1) return; // already gone; nothing to repair
+      blob.sessions.splice(index, 1);
+      writeBlob(blob);
     },
 
-    async clearAllSessions() {
-      const blob = readBlob();
-      blob.sessions = [];
-      writeBlob(blob);
+    async loadAllSessionRows(): Promise<PersistedSessionRow[]> {
+      return byCompletedAt(readBlob().sessions);
     },
   };
 }

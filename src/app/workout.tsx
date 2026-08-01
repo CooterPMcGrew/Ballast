@@ -8,7 +8,7 @@ import { buzzRestOver, buzzSetDone, buzzVerdict } from '@/platform/haptics';
 import { restSecForExercise } from '@/config/progressionConfig';
 import { getExerciseById } from '@/data/exerciseCatalog';
 import type { SetFeedback } from '@/domain/types';
-import { formatLoad, LB_PER_KG, unitSuffix } from '@/domain/units';
+import { formatLoad, LB_PER_KG, LOAD_STEP_LB, unitSuffix } from '@/domain/units';
 import { loadStepKgForExercise, useAppStore } from '@/store/appStore';
 
 /** How the Post-Set Matrix words map back when replaying history. */
@@ -59,7 +59,7 @@ export default function WorkoutScreen() {
   const active = useAppStore((state) => state.activeExercise);
   const unitPreference = useAppStore((state) => state.unitPreference);
   const startExercise = useAppStore((state) => state.startExercise);
-  const adjustLoad = useAppStore((state) => state.adjustLoad);
+  const stepLoad = useAppStore((state) => state.stepLoad);
   const adjustReps = useAppStore((state) => state.adjustReps);
   const setLoadKg = useAppStore((state) => state.setLoadKg);
   const setTargetReps = useAppStore((state) => state.setTargetReps);
@@ -125,8 +125,13 @@ export default function WorkoutScreen() {
   }
 
   const setNumber = active.setFeedbacks.length + 1;
-  const stepKg = loadStepKgForExercise(exercise.id);
   const isLastSet = setNumber === active.totalSets;
+  // Say what a press is worth — the step differs by unit (2.5 lb grid) and by
+  // exercise class in kg, so the button can't be left to guesswork.
+  const loadStepHint =
+    unitPreference === 'lb'
+      ? `±${LOAD_STEP_LB} LB`
+      : `±${loadStepKgForExercise(exercise.id)} KG`;
 
   const onCompleteSet = () => {
     buzzSetDone();
@@ -291,8 +296,9 @@ export default function WorkoutScreen() {
           <>
             <StepperRow
               label="LOAD"
-              onMinus={() => adjustLoad(-stepKg)}
-              onPlus={() => adjustLoad(stepKg)}
+              hint={loadStepHint}
+              onMinus={() => stepLoad(-1)}
+              onPlus={() => stepLoad(1)}
             />
             <StepperRow label="REPS" onMinus={() => adjustReps(-1)} onPlus={() => adjustReps(1)} />
             <StepperRow label="SETS" onMinus={() => adjustSets(-1)} onPlus={() => adjustSets(1)} />
@@ -331,10 +337,13 @@ export default function WorkoutScreen() {
 
 function StepperRow({
   label,
+  hint,
   onMinus,
   onPlus,
 }: {
   label: string;
+  /** What one press is worth, e.g. "±2.5 LB". Optional. */
+  hint?: string;
   onMinus: () => void;
   onPlus: () => void;
 }) {
@@ -347,7 +356,10 @@ function StepperRow({
       >
         <Text style={styles.stepperGlyph}>−</Text>
       </Pressable>
-      <Text style={styles.stepperLabel}>{label}</Text>
+      <View style={styles.stepperLabelBlock}>
+        <Text style={styles.stepperLabel}>{label}</Text>
+        {hint && <Text style={styles.stepperHint}>{hint}</Text>}
+      </View>
       <Pressable
         testID={`stepper-${label}-plus`}
         onPress={onPlus}
@@ -508,11 +520,19 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.mono,
     fontSize: fontSize.numeralLarge,
   },
+  stepperLabelBlock: {
+    alignItems: 'center',
+  },
   stepperLabel: {
     color: palette.slate,
     fontFamily: fontFamily.display,
     fontSize: fontSize.label,
     letterSpacing: 2,
+  },
+  stepperHint: {
+    color: palette.slate,
+    fontFamily: fontFamily.mono,
+    fontSize: fontSize.caption,
   },
   prompt: {
     color: palette.slate,

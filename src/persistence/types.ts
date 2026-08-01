@@ -24,7 +24,12 @@ export interface PersistedState {
   customGym: CustomGymState | null;
   /** User-defined exercises (local-only; contributions always derived). */
   customExercises: Exercise[] | null;
-  /** Per exercise, oldest → newest — the order the engine expects. */
+  /**
+   * Per exercise, oldest → newest BY WALL CLOCK — the order the engine
+   * expects. Not insert order: a back-dated row from the past-workout log
+   * must not sit at the tail, where the engine would read it as the most
+   * recent session.
+   */
   sessionHistoryByExercise: Record<string, TimestampedSessionResult[]>;
 }
 
@@ -36,10 +41,16 @@ export interface PersistenceDriver {
   saveUnitPreference(unit: UnitPreference): Promise<void>;
   saveCustomGym(customGym: CustomGymState): Promise<void>;
   saveCustomExercises(customExercises: Exercise[]): Promise<void>;
+  /** Rows may be back-dated (past-workout log); loads sort them, not this. */
   appendSession(row: PersistedSessionRow): Promise<void>;
-  /** Full-fidelity history (timestamps included) — the export path. */
+  /**
+   * Remove exactly ONE row matching every field of `row` — the repair path
+   * for a mis-entered lift, which would otherwise drive the engine's next
+   * prescription forever. Rows carry no id, so identity is the field tuple;
+   * when several rows match they are by definition identical, so which one
+   * goes is unobservable. A no-match is a no-op, not an error.
+   */
+  deleteSession(row: PersistedSessionRow): Promise<void>;
+  /** Full-fidelity history (timestamps included), oldest first — the export path. */
   loadAllSessionRows(): Promise<PersistedSessionRow[]>;
-  /** Destructive: wipe all training history. Settings gates it behind a
-   *  two-tap confirm; nothing else may call it. */
-  clearAllSessions(): Promise<void>;
 }

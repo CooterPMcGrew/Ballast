@@ -40,10 +40,7 @@ export default function SettingsScreen() {
   const selectedGymProfileId = useAppStore((state) => state.selectedGymProfileId);
 
   const [exportStatus, setExportStatus] = useState<string | null>(null);
-  const [confirmingClear, setConfirmingClear] = useState(false);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
-  const seedDemoHistory = useAppStore((state) => state.seedDemoHistory);
-  const clearHistory = useAppStore((state) => state.clearHistory);
   const customExercises = useAppStore((state) => state.customExercises);
   const removeCustomExercise = useAppStore((state) => state.removeCustomExercise);
 
@@ -71,22 +68,6 @@ export default function SettingsScreen() {
     }
     setConfirmingDeleteId(null);
     removeCustomExercise(exerciseId);
-  };
-
-  const onSeedDemo = async () => {
-    await seedDemoHistory();
-    setExportStatus('demo training block loaded — see Home');
-  };
-
-  // Two-tap confirm: destructive, and the user may be tired and imprecise.
-  const onClearHistory = async () => {
-    if (!confirmingClear) {
-      setConfirmingClear(true);
-      return;
-    }
-    setConfirmingClear(false);
-    await clearHistory();
-    setExportStatus('all history cleared');
   };
 
   const toggleEquipment = (tag: EquipmentTag) => {
@@ -215,6 +196,8 @@ export default function SettingsScreen() {
           onPress={() => router.push('/custom')}
         />
 
+        {/* Export only. The demo-history and erase-all buttons were
+            prototyping scaffolding and are gone (maintainer call). */}
         <Text style={styles.kicker}>DATA</Text>
         <View style={styles.chipRow}>
           <Chip
@@ -222,18 +205,6 @@ export default function SettingsScreen() {
             label="EXPORT HISTORY (JSON)"
             active={false}
             onPress={onExport}
-          />
-          <Chip
-            testID="seed-demo"
-            label="LOAD DEMO HISTORY"
-            active={false}
-            onPress={() => void onSeedDemo()}
-          />
-          <Chip
-            testID="clear-history"
-            label={confirmingClear ? 'TAP AGAIN TO ERASE ALL' : 'CLEAR HISTORY'}
-            active={confirmingClear}
-            onPress={() => void onClearHistory()}
           />
         </View>
         {exportStatus && <Text style={styles.note}>{exportStatus}</Text>}
