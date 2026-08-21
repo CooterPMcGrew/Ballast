@@ -20,11 +20,14 @@ const EMPTY_DAY_STUB_PX = 2;
 export function VolumeChart({
   rows,
   unit,
+  nowMs,
 }: {
   rows: readonly VolumeRow[];
   unit: UnitPreference;
+  /** Caller-supplied clock (see hooks/useNow) — never read the clock in render. */
+  nowMs: number;
 }) {
-  const totals = dailyVolumeKg(rows, HOME_CHART_DAYS, Date.now());
+  const totals = dailyVolumeKg(rows, HOME_CHART_DAYS, nowMs);
   const peakKg = Math.max(...totals);
 
   if (peakKg === 0) {

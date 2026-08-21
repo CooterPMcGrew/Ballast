@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MuscleMap } from '@/components/MuscleMap';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { deriveSplitName } from '@/domain/splits';
 import { MUSCLE_GROUPS, type MuscleGroup } from '@/domain/types';
 import { useAppStore } from '@/store/appStore';
@@ -51,15 +52,11 @@ export default function SplitBuilderScreen() {
   return (
     <SafeAreaView style={styles.screen}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Pressable
-          testID="split-back"
-          onPress={() => router.back()}
-          style={(state) => [styles.backButton, pressFeedback(state)]}
-        >
-          <Text style={styles.backButtonLabel}>‹ BACK</Text>
-        </Pressable>
-
-        <Text style={styles.kicker}>NEW SPLIT</Text>
+        <ScreenHeader
+          title="NEW SPLIT"
+          back={{ label: "TODAY'S FOCUS", onPress: () => router.back() }}
+          subtitle="a split is just a named set of muscles — pick them, save, train it"
+        />
 
         <Text style={styles.fieldLabel}>MUSCLES IN THIS DAY</Text>
         <View style={styles.grid}>
@@ -70,6 +67,9 @@ export default function SplitBuilderScreen() {
                 key={group}
                 testID={`split-muscle-${group}`}
                 onPress={() => toggleGroup(group)}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: picked }}
+                accessibilityLabel={`Include ${group} in this split`}
                 style={(state) => [
                   styles.muscleButton,
                   picked && styles.muscleButtonPicked,
@@ -104,6 +104,11 @@ export default function SplitBuilderScreen() {
         <Pressable
           testID="split-save"
           onPress={onSave}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !savable }}
+          accessibilityLabel={
+            savable ? 'Save this split' : 'Save split — pick at least one muscle group first'
+          }
           style={(state) => [
             styles.saveButton,
             !savable && styles.saveButtonDisabled,
@@ -125,27 +130,6 @@ const styles = StyleSheet.create({
   scroll: {
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.xl,
-  },
-  backButton: {
-    minHeight: touchTarget.secondaryMinPt,
-    justifyContent: 'center',
-    alignSelf: 'flex-start',
-    marginTop: spacing.md,
-    paddingRight: spacing.md,
-  },
-  backButtonLabel: {
-    color: palette.slate,
-    fontFamily: fontFamily.display,
-    fontSize: fontSize.label,
-    letterSpacing: 1,
-  },
-  kicker: {
-    color: palette.slate,
-    fontFamily: fontFamily.display,
-    fontSize: fontSize.label,
-    letterSpacing: 2,
-    marginTop: spacing.sm,
-    marginBottom: spacing.md,
   },
   fieldLabel: {
     color: palette.copper,

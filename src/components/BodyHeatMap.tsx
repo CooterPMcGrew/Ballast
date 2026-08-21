@@ -25,17 +25,57 @@ const POSTERIOR_RGB = '207, 138, 78';
 /** Below this intensity a region reads as noise on OLED — clamp to zero. */
 const GLOW_VISIBILITY_FLOOR = 0.04;
 
+/** Steps drawn in the legend ramp — enough to read as a gradient, not a bar. */
+const LEGEND_STEPS = 5;
+
 interface BodyHeatMapProps {
   intensityByGroup: Partial<Record<MuscleGroup, number>>;
   /** Multiplies the 28×44 base figure; 2 ≈ Home hero, 1.5 ≈ session inset. */
   scale?: number;
+  /**
+   * What brightness means HERE, as [dim, bright]. The same figure encodes
+   * recency on Home and session coverage mid-workout, and brightness alone
+   * cannot say which — without this the user is looking at a glowing torso
+   * with no way to know whether bright is good or bad. Omit only where
+   * surrounding copy already answers that.
+   */
+  legend?: readonly [dim: string, bright: string];
 }
 
-export function BodyHeatMap({ intensityByGroup, scale = 2 }: BodyHeatMapProps) {
+export function BodyHeatMap({ intensityByGroup, scale = 2, legend }: BodyHeatMapProps) {
   return (
-    <View style={styles.row}>
-      <Figure side="anterior" label="FRONT" intensityByGroup={intensityByGroup} scale={scale} />
-      <Figure side="posterior" label="BACK" intensityByGroup={intensityByGroup} scale={scale} />
+    <View>
+      <View style={styles.row}>
+        <Figure side="anterior" label="FRONT" intensityByGroup={intensityByGroup} scale={scale} />
+        <Figure side="posterior" label="BACK" intensityByGroup={intensityByGroup} scale={scale} />
+      </View>
+      {legend && <Legend dim={legend[0]} bright={legend[1]} />}
+    </View>
+  );
+}
+
+/** Reads the figure for the user: "DIM = DUE ▪▪▪▪▪ BRIGHT = TRAINED TODAY". */
+function Legend({ dim, bright }: { dim: string; bright: string }) {
+  return (
+    <View
+      style={styles.legendRow}
+      accessibilityRole="text"
+      accessibilityLabel={`Brightness scale: dim means ${dim}, bright means ${bright}`}
+    >
+      <Text style={styles.legendText}>{dim.toUpperCase()}</Text>
+      <View style={styles.legendRamp}>
+        {Array.from({ length: LEGEND_STEPS }, (_, step) => (
+          <View
+            key={step}
+            style={[
+              styles.legendSwatch,
+              // Same alpha ramp the figures use, so the key IS the encoding.
+              { backgroundColor: `rgba(${ANTERIOR_RGB}, ${(step + 1) / LEGEND_STEPS})` },
+            ]}
+          />
+        ))}
+      </View>
+      <Text style={styles.legendText}>{bright.toUpperCase()}</Text>
     </View>
   );
 }
@@ -113,5 +153,26 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.display,
     fontSize: fontSize.caption,
     letterSpacing: 2,
+  },
+  legendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  legendText: {
+    color: palette.slate,
+    fontFamily: fontFamily.mono,
+    fontSize: fontSize.caption,
+  },
+  legendRamp: {
+    flexDirection: 'row',
+    gap: 2,
+  },
+  legendSwatch: {
+    width: 10,
+    height: 8,
+    borderRadius: 1,
   },
 });

@@ -1,19 +1,14 @@
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { getExerciseById } from '@/data/exerciseCatalog';
 import { buildWeekReview } from '@/engine/weekReview';
+import { useNow } from '@/hooks/useNow';
 import { useAppStore } from '@/store/appStore';
-import {
-  fontFamily,
-  fontSize,
-  palette,
-  pressFeedback,
-  spacing,
-  touchTarget,
-} from '@/theme/tokens';
+import { fontFamily, fontSize, palette, spacing } from '@/theme/tokens';
 
 const MS_PER_DAY = 86_400_000;
 
@@ -44,7 +39,7 @@ function pct(value: number): string {
  */
 export default function ReviewScreen() {
   const historyByExercise = useAppStore((state) => state.sessionHistoryByExercise);
-  const nowMs = Date.now();
+  const nowMs = useNow();
   const review = buildWeekReview(historyByExercise, nowMs);
   const [top, ...others] = review.movers;
   const bars = others.slice(0, CARD_MOVERS_MAX);
@@ -56,13 +51,11 @@ export default function ReviewScreen() {
   return (
     <SafeAreaView style={styles.screen}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Pressable
-          testID="review-back"
-          onPress={() => router.back()}
-          style={(state) => [styles.backButton, pressFeedback(state)]}
-        >
-          <Text style={styles.backButtonLabel}>‹ HOME</Text>
-        </Pressable>
+        <ScreenHeader
+          title="WEEK REVIEW"
+          back={{ label: 'HOME', onPress: () => router.back() }}
+          subtitle="screenshot the card to share it"
+        />
 
         {!top && (
           <Text style={styles.emptyNote}>
@@ -147,19 +140,6 @@ const styles = StyleSheet.create({
   scroll: {
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.xl,
-  },
-  backButton: {
-    minHeight: touchTarget.secondaryMinPt,
-    justifyContent: 'center',
-    alignSelf: 'flex-start',
-    marginTop: spacing.md,
-    paddingRight: spacing.md,
-  },
-  backButtonLabel: {
-    color: palette.slate,
-    fontFamily: fontFamily.display,
-    fontSize: fontSize.label,
-    letterSpacing: 1,
   },
   emptyNote: {
     color: palette.copper,

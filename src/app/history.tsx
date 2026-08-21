@@ -1,8 +1,9 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { getExerciseById } from '@/data/exerciseCatalog';
 import { formatLoad, unitSuffix } from '@/domain/units';
 import { useAppStore } from '@/store/appStore';
@@ -25,7 +26,29 @@ import {
  * prescription for that movement, so repair must exist — but a *rewritten*
  * lift would be training data the user invented after the fact. Erase and
  * re-log is the honest path. The two-tap confirm is the guard.
+ *
+ * SectionList, not ScrollView: this list has no ceiling. A year of training
+ * is several hundred rows, and a ScrollView mounts every one of them before
+ * it can paint the first.
  */
+
+interface Lift {
+  exerciseId: string;
+  /** Position in this exercise's history — the identity the store deletes by. */
+  index: number;
+  name: string;
+  loadKg: number;
+  repsAchieved: number;
+  feedback: keyof typeof feedbackColor;
+  completedAtIso: string;
+}
+
+interface DaySection {
+  title: string;
+  volumeKg: number;
+  data: Lift[];
+}
+
 export default function HistoryScreen() {
   const historyByExercise = useAppStore((state) => state.sessionHistoryByExercise);
   const unitPreference = useAppStore((state) => state.unitPreference);
@@ -34,10 +57,9 @@ export default function HistoryScreen() {
   const [confirmingKey, setConfirmingKey] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
 
-  // `index` is the lift's position in its exercise's history — the identity
-  // the store deletes by. Deleting shifts later indices, so the confirm
-  // state is cleared on every delete.
-  const lifts = Object.entries(historyByExercise)
+  // Deleting shifts later indices, so the confirm state is cleared on every
+  // delete rather than left pointing at a row that has moved.
+  const lifts: Lift[] = Object.entries(historyByExercise)
     .flatMap(([exerciseId, rows]) =>
       rows.map((row, index) => ({
         exerciseId,
@@ -60,15 +82,16 @@ export default function HistoryScreen() {
   };
 
   // Group by local calendar day, newest first (lifts are already sorted).
-  const days: { day: string; volumeKg: number; entries: typeof lifts }[] = [];
+  const sections: DaySection[] = [];
   for (const lift of lifts) {
-    const day = new Date(lift.completedAtIso).toDateString().toUpperCase();
-    const bucket = days[days.length - 1];
-    if (bucket && bucket.day === day) {
-      bucket.entries.push(lift);
-      bucket.volumeKg += lift.loadKg * lift.repsAchieved;
+    const title = new Date(lift.completedAtIso).toDateString().toUpperCase();
+    const bucket = sections[sections.length - 1];
+    const volume = lift.loadKg * lift.repsAchieved;
+    if (bucket && bucket.title === title) {
+      bucket.data.push(lift);
+      bucket.volumeKg += volume;
     } else {
-      days.push({ day, volumeKg: lift.loadKg * lift.repsAchieved, entries: [lift] });
+      sections.push({ title, volumeKg: volume, data: [lift] });
     }
   }
 
@@ -77,71 +100,75 @@ export default function HistoryScreen() {
 
   return (
     <SafeAreaView style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <Pressable
-          testID="history-back"
-          onPress={() => router.back()}
-          style={(state) => [styles.backButton, pressFeedback(state)]}
-        >
-          <Text style={styles.backButtonLabel}>‹ HOME</Text>
-        </Pressable>
+      <SectionList
+        sections={sections}
+        keyExtractor={(lift) => `${lift.exerciseId}:${lift.index}`}
+        contentContainerStyle={styles.scroll}
+        stickySectionHeadersEnabled={false}
+        ListHeaderComponent={
+          <>
+            <ScreenHeader
+              title="WORKOUT HISTORY"
+              back={{ label: 'HOME', onPress: () => router.back() }}
+            />
 
-        <Text style={styles.kicker}>WORKOUT HISTORY</Text>
+            {/* The on-ramp for a paper logbook, and the repair path for a
+                session trained without the phone. Logged lifts progress
+                like tracked ones. */}
+            <Pressable
+              testID="log-past-workout"
+              onPress={() => router.push('/log')}
+              accessibilityRole="button"
+              accessibilityLabel="Log a workout you already did"
+              style={(state) => [styles.logButton, pressFeedback(state)]}
+            >
+              <Text style={styles.logLabel}>+ LOG PAST WORKOUT</Text>
+            </Pressable>
 
-        {/* The on-ramp for a paper logbook, and the repair path for a session
-            trained without the phone. Logged lifts progress like tracked ones. */}
-        <Pressable
-          testID="log-past-workout"
-          onPress={() => router.push('/log')}
-          style={(state) => [styles.logButton, pressFeedback(state)]}
-        >
-          <Text style={styles.logLabel}>+ LOG PAST WORKOUT</Text>
-        </Pressable>
-
-        {days.length === 0 && (
+            {status && <Text style={styles.hazardNote}>{status}</Text>}
+          </>
+        }
+        ListEmptyComponent={
           <Text style={styles.emptyNote}>
             nothing recorded yet — train, or log a workout you already did
           </Text>
-        )}
-
-        {status && <Text style={styles.hazardNote}>{status}</Text>}
-
-        {days.map(({ day, volumeKg, entries }) => (
-          <View key={day} style={styles.dayBlock}>
-            <View style={styles.dayHeader}>
-              <Text style={styles.dayTitle}>{day}</Text>
-              <Text style={styles.dayVolume}>{displayVolume(volumeKg)}</Text>
-            </View>
-            {entries.map((lift, position) => {
-              const key = `${lift.exerciseId}:${lift.index}`;
-              const confirming = confirmingKey === key;
-              return (
-                <View
-                  key={`${lift.completedAtIso}-${position}`}
-                  style={[styles.liftRow, { borderLeftColor: feedbackColor[lift.feedback] }]}
-                >
-                  <View style={styles.liftInfo}>
-                    <Text style={styles.liftName}>{lift.name}</Text>
-                    <Text style={styles.liftStats}>
-                      {formatLoad(lift.loadKg, unitPreference)} {unitSuffix(unitPreference)} ×{' '}
-                      {lift.repsAchieved}
-                    </Text>
-                  </View>
-                  <Pressable
-                    testID={`delete-lift-${key}`}
-                    onPress={() => void onDelete(lift.exerciseId, lift.index)}
-                    style={(state) => [styles.deleteButton, pressFeedback(state)]}
-                  >
-                    <Text style={[styles.deleteLabel, confirming && styles.deleteLabelConfirming]}>
-                      {confirming ? 'SURE?' : 'DELETE'}
-                    </Text>
-                  </Pressable>
-                </View>
-              );
-            })}
+        }
+        renderSectionHeader={({ section }) => (
+          <View style={styles.dayHeader}>
+            <Text style={styles.dayTitle}>{section.title}</Text>
+            <Text style={styles.dayVolume}>{displayVolume(section.volumeKg)}</Text>
           </View>
-        ))}
-      </ScrollView>
+        )}
+        renderItem={({ item: lift }) => {
+          const key = `${lift.exerciseId}:${lift.index}`;
+          const confirming = confirmingKey === key;
+          const stats = `${formatLoad(lift.loadKg, unitPreference)} ${unitSuffix(unitPreference)} × ${lift.repsAchieved}`;
+          return (
+            <View style={[styles.liftRow, { borderLeftColor: feedbackColor[lift.feedback] }]}>
+              <View style={styles.liftInfo} accessibilityLabel={`${lift.name}, ${stats}`}>
+                <Text style={styles.liftName}>{lift.name}</Text>
+                <Text style={styles.liftStats}>{stats}</Text>
+              </View>
+              <Pressable
+                testID={`delete-lift-${key}`}
+                onPress={() => void onDelete(lift.exerciseId, lift.index)}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  confirming
+                    ? `Confirm deleting ${lift.name}, ${stats}`
+                    : `Delete ${lift.name}, ${stats}`
+                }
+                style={(state) => [styles.deleteButton, pressFeedback(state)]}
+              >
+                <Text style={[styles.deleteLabel, confirming && styles.deleteLabelConfirming]}>
+                  {confirming ? 'SURE?' : 'DELETE'}
+                </Text>
+              </Pressable>
+            </View>
+          );
+        }}
+        SectionSeparatorComponent={null}
+      />
     </SafeAreaView>
   );
 }
@@ -154,27 +181,7 @@ const styles = StyleSheet.create({
   scroll: {
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.xl,
-  },
-  backButton: {
-    minHeight: touchTarget.secondaryMinPt,
-    justifyContent: 'center',
-    alignSelf: 'flex-start',
-    marginTop: spacing.md,
-    paddingRight: spacing.md,
-  },
-  backButtonLabel: {
-    color: palette.slate,
-    fontFamily: fontFamily.display,
-    fontSize: fontSize.label,
-    letterSpacing: 1,
-  },
-  kicker: {
-    color: palette.slate,
-    fontFamily: fontFamily.display,
-    fontSize: fontSize.label,
-    letterSpacing: 2,
-    marginTop: spacing.sm,
-    marginBottom: spacing.md,
+    flexGrow: 1,
   },
   logButton: {
     minHeight: touchTarget.secondaryMinPt,
@@ -184,7 +191,7 @@ const styles = StyleSheet.create({
     borderColor: palette.schematicCyan,
     borderRadius: 4,
     backgroundColor: palette.surface,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
   logLabel: {
     color: palette.schematicCyan,
@@ -204,16 +211,15 @@ const styles = StyleSheet.create({
     fontSize: fontSize.caption,
     marginBottom: spacing.md,
   },
-  dayBlock: {
-    marginBottom: spacing.lg,
-  },
   dayHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'baseline',
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: palette.slate,
+    backgroundColor: palette.gunmetal,
     paddingBottom: spacing.xs,
+    marginTop: spacing.lg,
     marginBottom: spacing.sm,
   },
   dayTitle: {

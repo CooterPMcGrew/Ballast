@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { ABOUT } from '@/config/about';
 import buildInfo from '@/config/buildInfo.json';
 import { CUSTOM_GYM_PRESETS } from '@/domain/equipment';
@@ -110,9 +111,7 @@ export default function SettingsScreen() {
   return (
     <SafeAreaView style={styles.screen}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Pressable testID="settings-back" onPress={() => router.back()} style={(state) => [styles.backButton, pressFeedback(state)]}>
-          <Text style={styles.backButtonLabel}>‹ HOME</Text>
-        </Pressable>
+        <ScreenHeader title="SETTINGS" back={{ label: 'HOME', onPress: () => router.back() }} />
 
         <Text style={styles.kicker}>UNITS</Text>
         <View style={styles.chipRow}>
@@ -161,6 +160,9 @@ export default function SettingsScreen() {
                   key={tag}
                   testID={`equip-${tag}`}
                   onPress={() => toggleEquipment(tag)}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: has }}
+                  accessibilityLabel={`${tag} available at my gym`}
                   style={(state) => [styles.equipRow, pressFeedback(state)]}
                 >
                   <Text style={[styles.equipLabel, has && styles.equipLabelOn]}>
@@ -190,12 +192,18 @@ export default function SettingsScreen() {
             <Chip
               testID={`submit-${exercise.id}`}
               label="SUBMIT"
+              accessibilityLabel={`Email ${exercise.name} for catalog review`}
               active={false}
               onPress={() => submitExercise(exercise)}
             />
             <Chip
               testID={`delete-${exercise.id}`}
               label={confirmingDeleteId === exercise.id ? 'SURE?' : 'DELETE'}
+              accessibilityLabel={
+                confirmingDeleteId === exercise.id
+                  ? `Confirm deleting ${exercise.name}`
+                  : `Delete ${exercise.name}`
+              }
               active={confirmingDeleteId === exercise.id}
               onPress={() => onDeleteCustom(exercise.id)}
             />
@@ -225,6 +233,11 @@ export default function SettingsScreen() {
             <Chip
               testID={`delete-split-${split.id}`}
               label={confirmingSplitId === split.id ? 'SURE?' : 'DELETE'}
+              accessibilityLabel={
+                confirmingSplitId === split.id
+                  ? `Confirm deleting the ${split.name} split`
+                  : `Delete the ${split.name} split`
+              }
               active={confirmingSplitId === split.id}
               onPress={() => onDeleteSplit(split.id)}
             />
@@ -275,16 +288,22 @@ function Chip({
   active,
   onPress,
   testID,
+  accessibilityLabel,
 }: {
   label: string;
   active: boolean;
   onPress: () => void;
   testID: string;
+  /** Defaults to the visible label; override where the label is a bare glyph. */
+  accessibilityLabel?: string;
 }) {
   return (
     <Pressable
       testID={testID}
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      accessibilityLabel={accessibilityLabel ?? label}
       style={(state) => [styles.chip, active && styles.chipActive, pressFeedback(state)]}
     >
       <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>{label}</Text>
@@ -300,19 +319,6 @@ const styles = StyleSheet.create({
   scroll: {
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.xl,
-  },
-  backButton: {
-    minHeight: touchTarget.secondaryMinPt,
-    justifyContent: 'center',
-    alignSelf: 'flex-start',
-    marginTop: spacing.md,
-    paddingRight: spacing.md,
-  },
-  backButtonLabel: {
-    color: palette.slate,
-    fontFamily: fontFamily.display,
-    fontSize: fontSize.label,
-    letterSpacing: 1,
   },
   kicker: {
     color: palette.slate,

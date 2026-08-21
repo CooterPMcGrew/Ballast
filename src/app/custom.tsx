@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ScreenHeader } from '@/components/ScreenHeader';
 import {
   EQUIPMENT_TAGS,
   EXERCISE_CLASSES,
@@ -75,15 +76,11 @@ export default function CustomExerciseScreen() {
   return (
     <SafeAreaView style={styles.screen}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Pressable
-          testID="custom-back"
-          onPress={() => router.back()}
-          style={(state) => [styles.backButton, pressFeedback(state)]}
-        >
-          <Text style={styles.backButtonLabel}>‹ SETTINGS</Text>
-        </Pressable>
-
-        <Text style={styles.kicker}>NEW EXERCISE</Text>
+        <ScreenHeader
+          title="NEW EXERCISE"
+          back={{ label: 'SETTINGS', onPress: () => router.back() }}
+          subtitle="name it, say what it needs and what it works — the rest is derived"
+        />
 
         <Text style={styles.fieldLabel}>NAME</Text>
         <TextInput
@@ -103,6 +100,9 @@ export default function CustomExerciseScreen() {
               key={cls}
               testID={`class-${cls}`}
               onPress={() => setExerciseClass(cls)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: exerciseClass === cls }}
+              accessibilityLabel={`${cls} exercise`}
               style={(state) => [
                 styles.chip,
                 exerciseClass === cls && styles.chipActive,
@@ -123,6 +123,9 @@ export default function CustomExerciseScreen() {
               key={tag}
               testID={`equip-${tag}`}
               onPress={() => toggleEquipment(tag)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: equipment.includes(tag) }}
+              accessibilityLabel={`Needs ${tag}`}
               style={(state) => [
                 styles.chip,
                 equipment.includes(tag) && styles.chipActive,
@@ -147,6 +150,9 @@ export default function CustomExerciseScreen() {
                 key={group}
                 testID={`muscle-${group}`}
                 onPress={() => cycleRole(group)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: role !== 'none' }}
+                accessibilityLabel={`${group}: ${role === 'none' ? 'not worked' : role} muscle. Tap to cycle.`}
                 style={(state) => [
                   styles.chip,
                   role === 'primary' && styles.chipPrimary,
@@ -171,9 +177,28 @@ export default function CustomExerciseScreen() {
           activation percentages are derived automatically — nothing to mistype
         </Text>
 
+        {/* A dimmed button with no stated reason is a dead end. Name the one
+            thing still missing rather than leaving the user to guess. */}
+        {!savable && (
+          <Text style={styles.note}>
+            {name.trim() === ''
+              ? 'give it a name to save'
+              : equipment.length === 0
+                ? 'pick the equipment it needs'
+                : 'mark at least one muscle as PRIMARY'}
+          </Text>
+        )}
+
         <Pressable
           testID="custom-save"
           onPress={onSave}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !savable }}
+          accessibilityLabel={
+            savable
+              ? 'Save this exercise'
+              : 'Save exercise — needs a name, equipment, and one primary muscle first'
+          }
           style={(state) => [
             styles.saveButton,
             !savable && styles.saveButtonDisabled,
@@ -197,27 +222,6 @@ const styles = StyleSheet.create({
   scroll: {
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.xl,
-  },
-  backButton: {
-    minHeight: touchTarget.secondaryMinPt,
-    justifyContent: 'center',
-    alignSelf: 'flex-start',
-    marginTop: spacing.md,
-    paddingRight: spacing.md,
-  },
-  backButtonLabel: {
-    color: palette.slate,
-    fontFamily: fontFamily.display,
-    fontSize: fontSize.label,
-    letterSpacing: 1,
-  },
-  kicker: {
-    color: palette.slate,
-    fontFamily: fontFamily.display,
-    fontSize: fontSize.label,
-    letterSpacing: 2,
-    marginTop: spacing.sm,
-    marginBottom: spacing.md,
   },
   fieldLabel: {
     color: palette.copper,

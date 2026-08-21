@@ -28,6 +28,12 @@ const KEY_ROWS = [
   ['.', '0', '⌫'],
 ] as const;
 
+/** Screen readers announce glyphs badly — say what the key does instead. */
+const KEY_SPOKEN: Record<string, string> = {
+  '.': 'decimal point',
+  '⌫': 'delete last digit',
+};
+
 interface NumberPadProps {
   visible: boolean;
   label: string;
@@ -68,10 +74,29 @@ export function NumberPad({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-      <View style={styles.backdrop}>
-        <View style={styles.sheet}>
+      {/* Tapping the dimmed area closes the pad. Every other sheet the user
+          has met behaves this way; without it the only exit is a CANCEL
+          button they have to find. */}
+      <Pressable
+        style={styles.backdrop}
+        onPress={onCancel}
+        accessibilityRole="button"
+        accessibilityLabel="Close the number pad"
+      >
+        {/* Swallows presses so a mis-aimed tap on the sheet itself — the
+            whole premise of this app — never dismisses the pad. */}
+        <Pressable
+          style={styles.sheet}
+          onPress={() => undefined}
+          accessibilityViewIsModal
+          accessibilityLabel={`Enter ${label}`}
+        >
           <Text style={styles.label}>{label}</Text>
-          <Text style={styles.entry}>
+          <Text
+            style={styles.entry}
+            accessibilityLiveRegion="polite"
+            accessibilityLabel={entry === '' ? 'nothing entered' : `${entry} ${unit ?? ''}`}
+          >
             {entry === '' ? '—' : entry}
             {unit ? <Text style={styles.entryUnit}> {unit}</Text> : null}
           </Text>
@@ -83,6 +108,8 @@ export function NumberPad({
                   key={key}
                   testID={`pad-${key}`}
                   onPress={() => onKey(key)}
+                  accessibilityRole="button"
+                  accessibilityLabel={KEY_SPOKEN[key] ?? key}
                   style={(state) => [styles.key, pressFeedback(state)]}
                 >
                   <Text style={styles.keyGlyph}>{key}</Text>
@@ -92,7 +119,13 @@ export function NumberPad({
           ))}
 
           <View style={styles.actionRow}>
-            <Pressable testID="pad-cancel" onPress={onCancel} style={(state) => [styles.cancelButton, pressFeedback(state)]}>
+            <Pressable
+              testID="pad-cancel"
+              onPress={onCancel}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel without changing the value"
+              style={(state) => [styles.cancelButton, pressFeedback(state)]}
+            >
               <Text style={styles.cancelLabel}>CANCEL</Text>
             </Pressable>
             <Pressable
@@ -101,13 +134,18 @@ export function NumberPad({
               // disabled as pointer-events:none and can leave it stale
               // after the button becomes enabled.
               onPress={() => submittable && onSubmit(parsed)}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !submittable }}
+              accessibilityLabel={
+                submittable ? `Set ${label} to ${entry} ${unit ?? ''}` : `Set ${label} — type a number first`
+              }
               style={(state) => [styles.setButton, !submittable && styles.setButtonDisabled, pressFeedback(state)]}
             >
               <Text style={[styles.setLabel, !submittable && styles.setLabelDisabled]}>SET</Text>
             </Pressable>
           </View>
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }

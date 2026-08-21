@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { useAppStore } from '@/store/appStore';
 import {
   fontFamily,
@@ -25,7 +26,23 @@ export default function SummaryScreen() {
   if (!summary) {
     return (
       <SafeAreaView style={styles.screen}>
-        <Text style={styles.assumptions}>No session data — start a workout from Home.</Text>
+        <View style={styles.scroll}>
+          <ScreenHeader title="NO SESSION DATA" />
+          <Text style={styles.assumptions}>
+            Nothing to summarize — start a workout from Home.
+          </Text>
+        </View>
+        <View style={styles.footer}>
+          <Pressable
+            testID="summary-done"
+            onPress={() => router.replace('/')}
+            accessibilityRole="button"
+            accessibilityLabel="Back to home"
+            style={(state) => [styles.doneButton, pressFeedback(state)]}
+          >
+            <Text style={styles.doneButtonLabel}>HOME</Text>
+          </Pressable>
+        </View>
       </SafeAreaView>
     );
   }
@@ -35,7 +52,7 @@ export default function SummaryScreen() {
   return (
     <SafeAreaView style={styles.screen}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.kicker}>SESSION COMPLETE</Text>
+        <ScreenHeader title="SESSION COMPLETE" />
 
         <View style={styles.hero}>
           <Text style={styles.heroValue}>
@@ -67,6 +84,8 @@ export default function SummaryScreen() {
         <Pressable
           testID="summary-done"
           onPress={() => router.replace('/')}
+          accessibilityRole="button"
+          accessibilityLabel="Done, back to home"
           style={(state) => [styles.doneButton, pressFeedback(state)]}
         >
           <Text style={styles.doneButtonLabel}>DONE</Text>
@@ -96,14 +115,6 @@ const styles = StyleSheet.create({
   scroll: {
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.xl,
-  },
-  kicker: {
-    color: palette.slate,
-    fontFamily: fontFamily.display,
-    fontSize: fontSize.label,
-    letterSpacing: 2,
-    marginTop: spacing.xl,
-    marginBottom: spacing.lg,
   },
   hero: {
     alignItems: 'center',

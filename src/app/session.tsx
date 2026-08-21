@@ -6,8 +6,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BodyHeatMap } from '@/components/BodyHeatMap';
 import { MuscleMap } from '@/components/MuscleMap';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { DEFAULT_GYM_PROFILES } from '@/data/defaultGymProfiles';
 import { EXERCISE_CATALOG, getExerciseById } from '@/data/exerciseCatalog';
+import { useNow } from '@/hooks/useNow';
 import { CUSTOM_GYM_PROFILE_ID, SPLIT_PRESETS } from '@/domain/types';
 import { filterAvailableExercises } from '@/domain/equipment';
 import { focusLabelForGroups } from '@/domain/splits';
@@ -30,6 +32,7 @@ import {
   feedbackColor,
   fontFamily,
   fontSize,
+  motion,
   palette,
   pressFeedback,
   spacing,
@@ -38,7 +41,7 @@ import {
 
 /** Rows glide to their new rank instead of teleporting — the re-ranking
  *  is the product's core mechanic, so the user should SEE it happen. */
-const RERANK_TRANSITION = LinearTransition.duration(300);
+const RERANK_TRANSITION = LinearTransition.duration(motion.rerankMs);
 
 const MS_PER_DAY = 86_400_000;
 
@@ -46,12 +49,48 @@ const MS_PER_DAY = 86_400_000;
 function lastResultLine(
   history: readonly TimestampedSessionResult[] | undefined,
   unit: Parameters<typeof formatLoad>[1],
+  nowMs: number,
 ): string | null {
   const last = history?.[history.length - 1];
   if (!last) return null;
-  const days = Math.floor((Date.now() - Date.parse(last.completedAtIso)) / MS_PER_DAY);
+  const days = Math.floor((nowMs - Date.parse(last.completedAtIso)) / MS_PER_DAY);
   const when = days <= 0 ? 'TODAY' : `${days}D AGO`;
   return `LAST ${formatLoad(last.loadKg, unit)} ${unitSuffix(unit)} × ${last.repsAchieved} · ${when}`;
+}
+
+/**
+ * A section title that folds its contents away. Sections carry their own
+ * count so a folded section still says how much is behind it — a bare "▸"
+ * with no number gives the user no reason to open it.
+ */
+function FoldToggle({
+  testID,
+  open,
+  title,
+  count,
+  onPress,
+}: {
+  testID: string;
+  open: boolean;
+  title: string;
+  count?: number;
+  onPress: () => void;
+}) {
+  const label = count === undefined ? title : `${title} (${count})`;
+  return (
+    <Pressable
+      testID={testID}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ expanded: open }}
+      accessibilityLabel={`${label}, ${open ? 'showing' : 'hidden'}`}
+      style={(state) => [styles.sectionToggle, pressFeedback(state)]}
+    >
+      <Text style={styles.sectionTitle}>
+        {open ? '▾' : '▸'} {label}
+      </Text>
+    </Pressable>
+  );
 }
 
 /**
@@ -79,12 +118,15 @@ export default function SessionScreen() {
   const activeSession = useAppStore((state) => state.activeSession);
   const startSession = useAppStore((state) => state.startSession);
   const endSession = useAppStore((state) => state.endSession);
+  const nowMs = useNow();
 
-  // Collapsible lists so END SESSION never hides behind 40 rows of catalog.
-  // The ranked list starts open (it's the point); the rest starts folded.
+  // Folds so END SESSION never hides behind 40 rows of catalog. The ranked
+  // list starts open (it IS the screen); the two status views and the
+  // catalog start folded so the list the user came to tap sits near the top.
   const [showRanked, setShowRanked] = useState(true);
   const [showOffTarget, setShowOffTarget] = useState(false);
   const [showSetLog, setShowSetLog] = useState(false);
+  const [showBodyStatus, setShowBodyStatus] = useState(false);
 
   // Focus param: one muscle or a comma-joined preset ("chest,shoulders,triceps").
   const targetGroups = (muscleGroup ?? '')
@@ -154,15 +196,17 @@ export default function SessionScreen() {
     return (
       <SafeAreaView style={styles.screen}>
         <ScrollView contentContainerStyle={styles.scroll}>
-          <Pressable
-            testID="back-to-home"
-            onPress={() => router.back()}
-            style={(state) => [styles.backButton, pressFeedback(state)]}
-          >
-            <Text style={styles.backButtonLabel}>‹ HOME</Text>
-          </Pressable>
+          <ScreenHeader
+            title="TODAY'S FOCUS"
+            back={{ label: 'HOME', onPress: () => router.back() }}
+            subtitle={
+              activeSession
+                ? 'session running — switching focus keeps your completed work'
+                : 'pick a day or a single muscle; the app ranks the exercises'
+            }
+          />
 
-          <Text style={styles.kicker}>GYM PROFILE</Text>
+          <Text style={styles.kicker}>WHERE ARE YOU TRAINING?</Text>
           <View style={styles.chipRow}>
             {profiles.map((p) => {
               const active = p.id === pickerProfile.id;
@@ -171,6 +215,9 @@ export default function SessionScreen() {
                   key={p.id}
                   testID={`profile-${p.id}`}
                   onPress={() => selectGymProfile(p.id)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={`Gym profile: ${p.name}`}
                   style={(state) => [styles.chip, active && styles.chipActive, pressFeedback(state)]}
                 >
                   <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>
@@ -180,6 +227,9 @@ export default function SessionScreen() {
               );
             })}
           </View>
+          <Text style={styles.hint}>
+            decides which exercises are available — change it any time
+          </Text>
 
           <Text style={styles.kicker}>
             {activeSession ? 'SWITCH FOCUS' : 'WHAT ARE YOU TRAINING?'}
@@ -195,6 +245,8 @@ export default function SessionScreen() {
                     params: { muscleGroup: split.groups },
                   })
                 }
+                accessibilityRole="button"
+                accessibilityLabel={`Train ${split.name}`}
                 style={(state) => [styles.chip, pressFeedback(state)]}
               >
                 <Text style={styles.chipLabel}>{split.name}</Text>
@@ -204,6 +256,8 @@ export default function SessionScreen() {
             <Pressable
               testID="new-split"
               onPress={() => router.push('/split')}
+              accessibilityRole="button"
+              accessibilityLabel="Build a new split"
               style={(state) => [styles.chip, styles.chipNew, pressFeedback(state)]}
             >
               <Text style={[styles.chipLabel, styles.chipLabelNew]}>+ NEW SPLIT</Text>
@@ -217,6 +271,8 @@ export default function SessionScreen() {
                 key={group}
                 testID={`train-${group}`}
                 onPress={() => router.replace({ pathname: '/session', params: { muscleGroup: group } })}
+                accessibilityRole="button"
+                accessibilityLabel={`Train ${group}`}
                 style={(state) => [styles.muscleButton, pressFeedback(state)]}
               >
                 <MuscleMap group={group} />
@@ -226,7 +282,13 @@ export default function SessionScreen() {
           </View>
 
           {activeSession && (
-            <Pressable testID="end-session" onPress={onEndSessionShared} style={(state) => [styles.endButton, pressFeedback(state)]}>
+            <Pressable
+              testID="end-session"
+              onPress={onEndSessionShared}
+              accessibilityRole="button"
+              accessibilityLabel="End session and see the summary"
+              style={(state) => [styles.endButton, pressFeedback(state)]}
+            >
               <Text style={styles.endButtonLabel}>END SESSION</Text>
             </Pressable>
           )}
@@ -262,25 +324,25 @@ export default function SessionScreen() {
     <SafeAreaView style={styles.screen}>
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* Focus switch, not session exit — completed work and clock survive. */}
-        <Pressable
-          testID="back-to-groups"
-          onPress={() => router.replace('/session')}
-          style={(state) => [styles.backButton, pressFeedback(state)]}
-        >
-          <Text style={styles.backButtonLabel}>‹ MUSCLE GROUPS</Text>
-        </Pressable>
+        <ScreenHeader
+          title={focusLabel}
+          subtitle={`AT ${profile.name.toUpperCase()} · TAP AN EXERCISE TO START IT`}
+          back={{ label: "TODAY'S FOCUS", onPress: () => router.replace('/session') }}
+        />
 
-        <Text style={styles.kicker}>
-          {focusLabel} — {profile.name.toUpperCase()}
-        </Text>
-
-        {/* Coverage strip: per-component state, the recommender's working memory. */}
+        {/* Coverage strip: per-component state, the recommender's working
+            memory. This is what the ranking below is computed from, so it
+            stays visible while the two whole-body views fold away. */}
         <View style={styles.coverageRow}>
           {targetGroups.flatMap((group) => MUSCLE_COMPONENTS_BY_GROUP[group]).map((component) => {
             const covered = Math.min(1, coverage[component] ?? 0);
             const worked = covered > 0;
             return (
-              <View key={component} style={[styles.coverageChip, worked && styles.coverageChipHit]}>
+              <View
+                key={component}
+                accessibilityLabel={`${COMPONENT_LABELS[component]}: ${Math.round(covered * 100)} percent covered`}
+                style={[styles.coverageChip, worked && styles.coverageChipHit]}
+              >
                 <Text style={[styles.coverageLabel, worked && styles.coverageLabelHit]}>
                   {COMPONENT_LABELS[component].toUpperCase()}
                 </Text>
@@ -292,56 +354,52 @@ export default function SessionScreen() {
           })}
         </View>
 
-        {/* Whole-body view: what today's work has reached, muscle by muscle. */}
-        <Text style={styles.sectionTitle}>FULL BODY TODAY</Text>
-        <BodyHeatMap intensityByGroup={groupPercents} scale={1.5} />
-        <View style={styles.groupPctRow}>
-          {MUSCLE_GROUPS.map((group) => {
-            const pct = Math.round(Math.min(1, groupPercents[group]) * 100);
-            return (
-              <Text key={group} style={[styles.groupPct, pct > 0 && styles.groupPctLit]}>
-                {group.toUpperCase()} {pct}%
-              </Text>
-            );
-          })}
-        </View>
-
         <View style={styles.sectionHeaderRow}>
-          <Pressable
+          <FoldToggle
             testID="toggle-ranked"
+            open={showRanked}
+            title="UP NEXT"
+            count={ranked.length}
             onPress={() => setShowRanked((open) => !open)}
-            style={(state) => [styles.sectionToggle, pressFeedback(state)]}
-          >
-            <Text style={styles.sectionTitle}>
-              {showRanked ? '▾' : '▸'} UP NEXT ({ranked.length})
-            </Text>
-          </Pressable>
+          />
+          {/* Armed state must offer its own way out: an armed chip that still
+              reads "SUPERSET" gives the user no visible cancel. */}
           <Pressable
             testID="superset-arm"
             onPress={toggleSupersetArm}
+            accessibilityRole="button"
+            accessibilityState={{ selected: supersetArmed }}
+            accessibilityLabel={supersetArmed ? 'Cancel superset pairing' : 'Pair two exercises as a superset'}
             style={(state) => [styles.supersetChip, supersetArmed && styles.supersetChipArmed, pressFeedback(state)]}
           >
             <Text style={[styles.supersetChipLabel, supersetArmed && styles.supersetChipLabelArmed]}>
-              {supersetArmed
-                ? supersetPendingId
-                  ? 'PICK 2ND EXERCISE'
-                  : 'PICK 2 EXERCISES'
-                : 'SUPERSET'}
+              {supersetArmed ? '✕ CANCEL' : 'SUPERSET'}
             </Text>
           </Pressable>
         </View>
+        {supersetArmed && (
+          <Text style={styles.armedHint}>
+            {supersetPendingId
+              ? 'now tap the second exercise — the pair alternates, one rest covers both'
+              : 'tap two exercises to pair them'}
+          </Text>
+        )}
+
         {showRanked && ranked.length === 0 && (
           <Text style={styles.rationale}>
-            Nothing available for this group at this gym — switch profiles on Home.
+            Nothing for this focus at {profile.name.toUpperCase()} — go back and pick a gym
+            profile with more equipment, or a different muscle group.
           </Text>
         )}
         {showRanked && ranked.map(({ exercise, rationale }) => {
-          const lastLine = lastResultLine(historyByExercise[exercise.id], unitPreference);
+          const lastLine = lastResultLine(historyByExercise[exercise.id], unitPreference, nowMs);
           return (
             <Animated.View key={exercise.id} layout={RERANK_TRANSITION}>
               <Pressable
                 testID={`recommend-${exercise.id}`}
                 onPress={() => onExercisePress(exercise.id)}
+                accessibilityRole="button"
+                accessibilityLabel={`${exercise.name}. ${rationale}.${lastLine ? ` ${lastLine}` : ''}`}
                 style={(state) => [
                   styles.row,
                   exercise.id === supersetPendingId && styles.rowPending,
@@ -358,22 +416,22 @@ export default function SessionScreen() {
 
         {offTarget.length > 0 && (
           <>
-            <Pressable
+            <FoldToggle
               testID="toggle-offtarget"
+              open={showOffTarget}
+              title="EVERYTHING ELSE"
+              count={offTarget.length}
               onPress={() => setShowOffTarget((open) => !open)}
-              style={(state) => [styles.sectionToggle, pressFeedback(state)]}
-            >
-              <Text style={styles.sectionTitle}>
-                {showOffTarget ? '▾' : '▸'} EVERYTHING ELSE ({offTarget.length})
-              </Text>
-            </Pressable>
+            />
             {showOffTarget && offTarget.map((exercise) => {
-              const lastLine = lastResultLine(historyByExercise[exercise.id], unitPreference);
+              const lastLine = lastResultLine(historyByExercise[exercise.id], unitPreference, nowMs);
               return (
                 <Pressable
                   key={exercise.id}
                   testID={`mix-${exercise.id}`}
                   onPress={() => onExercisePress(exercise.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${exercise.name}, works ${exercise.primaryMuscles.join(', ')}`}
                   style={(state) => [
                     styles.row,
                     exercise.id === supersetPendingId && styles.rowPending,
@@ -401,7 +459,43 @@ export default function SessionScreen() {
           </>
         )}
 
-        <Pressable testID="end-session" onPress={onEndSessionShared} style={(state) => [styles.endButton, pressFeedback(state)]}>
+        {/* Whole-body views, folded: the coverage strip above already carries
+            the numbers the ranking uses, and three renderings of the same
+            state stacked above the exercise list pushed the list — the point
+            of the screen — below the fold. */}
+        <FoldToggle
+          testID="toggle-bodystatus"
+          open={showBodyStatus}
+          title="FULL BODY TODAY"
+          onPress={() => setShowBodyStatus((open) => !open)}
+        />
+        {showBodyStatus && (
+          <>
+            <BodyHeatMap
+              intensityByGroup={groupPercents}
+              scale={1.5}
+              legend={['untouched', 'covered']}
+            />
+            <View style={styles.groupPctRow}>
+              {MUSCLE_GROUPS.map((group) => {
+                const pct = Math.round(Math.min(1, groupPercents[group]) * 100);
+                return (
+                  <Text key={group} style={[styles.groupPct, pct > 0 && styles.groupPctLit]}>
+                    {group.toUpperCase()} {pct}%
+                  </Text>
+                );
+              })}
+            </View>
+          </>
+        )}
+
+        <Pressable
+          testID="end-session"
+          onPress={onEndSessionShared}
+          accessibilityRole="button"
+          accessibilityLabel="End session and see the summary"
+          style={(state) => [styles.endButton, pressFeedback(state)]}
+        >
           <Text style={styles.endButtonLabel}>END SESSION</Text>
         </Pressable>
 
@@ -409,15 +503,13 @@ export default function SessionScreen() {
             never between the user and END SESSION. */}
         {(activeSession?.setLog.length ?? 0) > 0 && (
           <>
-            <Pressable
+            <FoldToggle
               testID="toggle-setlog"
+              open={showSetLog}
+              title="SET LOG"
+              count={activeSession?.setLog.length}
               onPress={() => setShowSetLog((open) => !open)}
-              style={(state) => [styles.sectionToggle, pressFeedback(state)]}
-            >
-              <Text style={styles.sectionTitle}>
-                {showSetLog ? '▾' : '▸'} SET LOG ({activeSession?.setLog.length})
-              </Text>
-            </Pressable>
+            />
             {showSetLog &&
               activeSession?.setLog.map((entry, index) => (
                 <View
@@ -447,26 +539,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.xl,
   },
-  backButton: {
-    minHeight: touchTarget.secondaryMinPt,
-    justifyContent: 'center',
-    alignSelf: 'flex-start',
-    marginTop: spacing.md,
-    paddingRight: spacing.md,
-  },
-  backButtonLabel: {
-    color: palette.slate,
-    fontFamily: fontFamily.display,
-    fontSize: fontSize.label,
-    letterSpacing: 1,
-  },
   kicker: {
     color: palette.slate,
     fontFamily: fontFamily.display,
     fontSize: fontSize.label,
     letterSpacing: 2,
-    marginTop: spacing.sm,
+    marginTop: spacing.lg,
     marginBottom: spacing.md,
+  },
+  hint: {
+    color: palette.slate,
+    fontFamily: fontFamily.mono,
+    fontSize: fontSize.caption,
+    marginTop: spacing.sm,
+  },
+  armedHint: {
+    color: palette.schematicCyan,
+    fontFamily: fontFamily.mono,
+    fontSize: fontSize.caption,
+    marginBottom: spacing.sm,
   },
   chipRow: {
     flexDirection: 'row',
@@ -536,7 +627,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.sm,
   },
   coverageChip: {
     flexDirection: 'row',

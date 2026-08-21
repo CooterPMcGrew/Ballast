@@ -53,10 +53,27 @@ export default function RootLayout() {
       <StatusBar style="light" />
       <Stack
         screenOptions={{
+          // Every screen draws its own ScreenHeader instead: one back control
+          // with one grammar, rather than a native bar on some routes and a
+          // hand-rolled one on others.
           headerShown: false,
           contentStyle: { backgroundColor: palette.gunmetal },
+          // A slide carries direction — the user sees they went deeper, and
+          // the same motion in reverse tells them they came back out.
+          animation: 'slide_from_right',
         }}
-      />
+      >
+        {/*
+          The workout screen owns the swipe-back edge. Mid-set, an accidental
+          edge swipe would discard the in-flight prescription with no warning
+          — precisely the "user cannot aim" failure the app is built against.
+          Leaving goes through the labeled control, which confirms first.
+        */}
+        <Stack.Screen name="workout" options={{ gestureEnabled: false }} />
+        {/* Terminal screen: the session it summarizes is already closed, so
+            there is nothing behind it to swipe back to. */}
+        <Stack.Screen name="summary" options={{ gestureEnabled: false }} />
+      </Stack>
     </>
   );
 }

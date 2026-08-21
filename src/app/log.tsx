@@ -4,8 +4,10 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { NumberPad } from '@/components/NumberPad';
+import { ScreenHeader } from '@/components/ScreenHeader';
 import { progressionWindowForExercise } from '@/config/progressionConfig';
 import { EXERCISE_CATALOG, getExerciseById } from '@/data/exerciseCatalog';
+import { useNow } from '@/hooks/useNow';
 import type { Exercise, SetFeedback } from '@/domain/types';
 import { formatLoad, LB_PER_KG, LOAD_STEP_LB, steppedLoadKg, unitSuffix } from '@/domain/units';
 import { seedLoadKgForExercise } from '@/engine/seeding';
@@ -54,8 +56,9 @@ const FEEDBACK_OPTIONS: { feedback: SetFeedback; label: string }[] = [
   { feedback: 'grind', label: 'GRIND / FORM BROKE' },
 ];
 
-function dateFromDaysAgo(daysAgo: number): Date {
-  const date = new Date();
+/** `nowMs` is supplied by the caller (hooks/useNow) — never read in render. */
+function dateFromDaysAgo(daysAgo: number, nowMs: number): Date {
+  const date = new Date(nowMs);
   date.setDate(date.getDate() - daysAgo);
   date.setHours(LOG_HOUR_LOCAL, 0, 0, 0);
   return date;
@@ -82,8 +85,9 @@ export default function LogPastWorkoutScreen() {
   const [filter, setFilter] = useState('');
   const [padVisible, setPadVisible] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const nowMs = useNow();
 
-  const workoutDate = dateFromDaysAgo(daysAgo);
+  const workoutDate = dateFromDaysAgo(daysAgo, nowMs);
 
   // Every exercise, unfiltered by gym profile: a past workout may have been
   // trained somewhere other than the gym selected today.
@@ -157,15 +161,11 @@ export default function LogPastWorkoutScreen() {
   return (
     <SafeAreaView style={styles.screen}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <Pressable
-          testID="log-back"
-          onPress={() => router.back()}
-          style={(state) => [styles.backButton, pressFeedback(state)]}
-        >
-          <Text style={styles.backButtonLabel}>‹ HISTORY</Text>
-        </Pressable>
-
-        <Text style={styles.kicker}>LOG PAST WORKOUT</Text>
+        <ScreenHeader
+          title="LOG PAST WORKOUT"
+          back={{ label: 'HISTORY', onPress: () => router.back() }}
+          subtitle="a logged lift progresses exactly like a tracked one"
+        />
 
         <Text style={styles.fieldLabel}>WHEN</Text>
         <Text style={styles.dateValue}>{workoutDate.toDateString().toUpperCase()}</Text>
@@ -181,6 +181,9 @@ export default function LogPastWorkoutScreen() {
                 key={jump}
                 testID={`day-${jump}`}
                 onPress={() => stepDays(jump)}
+                accessibilityRole="button"
+                accessibilityState={{ disabled }}
+                accessibilityLabel={`Move the date ${Math.abs(jump)} day${Math.abs(jump) === 1 ? '' : 's'} ${jump > 0 ? 'later' : 'earlier'}`}
                 style={(state) => [
                   styles.dayButton,
                   disabled && styles.dayButtonDisabled,
@@ -214,6 +217,8 @@ export default function LogPastWorkoutScreen() {
                 <Pressable
                   testID={`remove-entry-${index}`}
                   onPress={() => onRemoveEntry(index)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove ${getExerciseById(entry.exerciseId)?.name ?? entry.exerciseId} from this workout`}
                   style={(state) => [styles.removeButton, pressFeedback(state)]}
                 >
                   <Text style={styles.removeLabel}>REMOVE</Text>
@@ -242,6 +247,8 @@ export default function LogPastWorkoutScreen() {
                 key={exercise.id}
                 testID={`pick-${exercise.id}`}
                 onPress={() => onPickExercise(exercise)}
+                accessibilityRole="button"
+                accessibilityLabel={`${exercise.name}, works ${exercise.primaryMuscles.join(', ')}`}
                 style={(state) => [styles.pickRow, pressFeedback(state)]}
               >
                 <Text style={styles.pickName}>{exercise.name}</Text>
@@ -262,11 +269,15 @@ export default function LogPastWorkoutScreen() {
               </Pressable>
             </View>
 
-            {/* Tap the numeral to type it — big-key pad, never the system keyboard. */}
+            {/* Tap the numeral to type it — big-key pad, never the system
+                keyboard. The rule and hint are the affordance: a bare numeral
+                gives no sign it is a control. */}
             <Pressable
               testID="log-edit-load"
               onPress={() => setPadVisible(true)}
-              style={pressFeedback}
+              accessibilityRole="button"
+              accessibilityLabel={`Load ${displayLoad(loadKg)}. Tap to type a new load.`}
+              style={(state) => [styles.editable, pressFeedback(state)]}
             >
               <Text style={styles.loadValue}>
                 {formatLoad(loadKg, unitPreference)}
@@ -274,6 +285,7 @@ export default function LogPastWorkoutScreen() {
               </Text>
             </Pressable>
             <Text style={styles.repsValue}>× {reps}</Text>
+            <Text style={styles.editHint}>TAP THE LOAD TO TYPE IT</Text>
 
             <StepperRow
               label="LOAD"
@@ -294,6 +306,8 @@ export default function LogPastWorkoutScreen() {
                   key={feedback}
                   testID={`log-feedback-${feedback}`}
                   onPress={() => onAddEntry(feedback)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${label} — add ${selected.name} at ${displayLoad(loadKg)} for ${reps} reps`}
                   style={(state) => [
                     styles.bigButton,
                     { borderColor: feedbackColor[feedback] },
@@ -321,6 +335,8 @@ export default function LogPastWorkoutScreen() {
           <Pressable
             testID="log-save"
             onPress={() => void onSave()}
+            accessibilityRole="button"
+            accessibilityLabel={`Save ${entries.length} lift${entries.length === 1 ? '' : 's'} to ${workoutDate.toDateString()}`}
             style={(state) => [styles.saveButton, pressFeedback(state)]}
           >
             <Text style={styles.saveLabel}>
@@ -395,27 +411,6 @@ const styles = StyleSheet.create({
   scroll: {
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.xl,
-  },
-  backButton: {
-    minHeight: touchTarget.secondaryMinPt,
-    justifyContent: 'center',
-    alignSelf: 'flex-start',
-    marginTop: spacing.md,
-    paddingRight: spacing.md,
-  },
-  backButtonLabel: {
-    color: palette.slate,
-    fontFamily: fontFamily.display,
-    fontSize: fontSize.label,
-    letterSpacing: 1,
-  },
-  kicker: {
-    color: palette.slate,
-    fontFamily: fontFamily.display,
-    fontSize: fontSize.label,
-    letterSpacing: 2,
-    marginTop: spacing.sm,
-    marginBottom: spacing.md,
   },
   fieldLabel: {
     color: palette.copper,
@@ -539,12 +534,20 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     flexShrink: 1,
   },
+  // A rule under the tappable numeral — the affordance that separates a
+  // control from a readout (same treatment as the workout screen).
+  editable: {
+    alignSelf: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#8FA0AE66',
+    paddingHorizontal: spacing.sm,
+    marginTop: spacing.md,
+  },
   loadValue: {
     color: palette.schematicCyan,
     fontFamily: fontFamily.monoBold,
     fontSize: fontSize.numeralHero,
     textAlign: 'center',
-    marginTop: spacing.md,
   },
   loadUnit: {
     color: palette.slate,
@@ -556,6 +559,14 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.mono,
     fontSize: fontSize.numeralLarge,
     textAlign: 'center',
+  },
+  editHint: {
+    color: palette.slate,
+    fontFamily: fontFamily.mono,
+    fontSize: fontSize.caption,
+    letterSpacing: 1,
+    textAlign: 'center',
+    marginTop: spacing.xs,
     marginBottom: spacing.md,
   },
   stepperRow: {
