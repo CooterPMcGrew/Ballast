@@ -73,6 +73,19 @@ export const pressFeedback = ({ pressed }: { pressed: boolean }) =>
   pressed ? { opacity: 0.55, transform: [{ scale: 0.98 }] } : null;
 
 /**
+ * Motion durations (ms). Motion here does one job: make a change of state
+ * legible. A control that swaps contents instantly reads as a glitch; one
+ * that takes half a second wastes a tired user's time between sets. These
+ * are the two points on that curve, and nothing animates without one.
+ */
+export const motion = {
+  /** In-place content swap (workout working → feedback → resting). */
+  phaseSwapMs: 180,
+  /** List re-rank glide — the recommender visibly showing its work. */
+  rerankMs: 300,
+} as const;
+
+/**
  * Post-Set Matrix semantics carried into any set visualization (blocks,
  * log rows): the same three colors as the buttons that recorded them.
  * Hazard here is semantic, not decorative — a grind block IS a warning.
