@@ -7,8 +7,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { ABOUT } from '@/config/about';
 import buildInfo from '@/config/buildInfo.json';
+import { DEFAULT_GYM_PROFILES } from '@/data/defaultGymProfiles';
 import { CUSTOM_GYM_PRESETS } from '@/domain/equipment';
 import {
+  CUSTOM_GYM_PROFILE_ID,
   EQUIPMENT_TAGS,
   UNIT_PREFERENCES,
   type EquipmentTag,
@@ -18,7 +20,7 @@ import {
 import { persistence } from '@/persistence';
 import { buildExportPayload, exportFileName } from '@/persistence/export';
 import { saveExportFile } from '@/persistence/saveExport';
-import { useAppStore } from '@/store/appStore';
+import { getProfileById, useAppStore } from '@/store/appStore';
 import {
   fontFamily,
   fontSize,
@@ -39,6 +41,7 @@ export default function SettingsScreen() {
   const customGym = useAppStore((state) => state.customGym);
   const setCustomGym = useAppStore((state) => state.setCustomGym);
   const selectedGymProfileId = useAppStore((state) => state.selectedGymProfileId);
+  const selectGymProfile = useAppStore((state) => state.selectGymProfile);
 
   const [exportStatus, setExportStatus] = useState<string | null>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
@@ -47,6 +50,13 @@ export default function SettingsScreen() {
   const customSplits = useAppStore((state) => state.customSplits);
   const removeCustomSplit = useAppStore((state) => state.removeCustomSplit);
   const [confirmingSplitId, setConfirmingSplitId] = useState<string | null>(null);
+
+  // The stock profiles, plus the user's own only while it is switched on —
+  // an off custom gym is not a place you can be training.
+  const activeProfile = getProfileById(selectedGymProfileId, customGym);
+  const gymProfiles = customGym.enabled
+    ? [...DEFAULT_GYM_PROFILES, getProfileById(CUSTOM_GYM_PROFILE_ID, customGym)]
+    : [...DEFAULT_GYM_PROFILES];
 
   // Submission = a mail the USER consciously sends; the app itself never
   // phones home. Opens their mail client pre-filled for maker review.
@@ -129,7 +139,26 @@ export default function SettingsScreen() {
           display only — loads are stored and progressed in kg
         </Text>
 
+        {/* Which gym you are in decides what the recommender can offer, so it
+            sits with the rest of the gym description rather than costing a
+            block of the session picker every time you train. */}
         <Text style={styles.kicker}>MY GYM</Text>
+        <View style={styles.chipRow}>
+          {gymProfiles.map((profile) => (
+            <Chip
+              key={profile.id}
+              testID={`profile-${profile.id}`}
+              label={profile.name.toUpperCase()}
+              accessibilityLabel={`Train at ${profile.name}`}
+              active={profile.id === activeProfile.id}
+              onPress={() => selectGymProfile(profile.id)}
+            />
+          ))}
+        </View>
+        <Text style={styles.note}>
+          decides which exercises the session screen can offer
+        </Text>
+
         <Chip
           testID="toggle-custom-gym"
           label={customGym.enabled ? 'DIFFERENT GYM: ON' : 'DIFFERENT GYM: OFF'}
@@ -137,7 +166,7 @@ export default function SettingsScreen() {
           onPress={() => setCustomGym({ ...customGym, enabled: !customGym.enabled })}
         />
         {!customGym.enabled && (
-          <Text style={styles.note}>off — the stock profiles on Home apply as usual</Text>
+          <Text style={styles.note}>off — one of the stock profiles above applies</Text>
         )}
 
         {customGym.enabled && (

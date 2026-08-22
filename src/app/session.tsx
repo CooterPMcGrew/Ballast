@@ -7,10 +7,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BodyHeatMap } from '@/components/BodyHeatMap';
 import { MuscleMap } from '@/components/MuscleMap';
 import { ScreenHeader } from '@/components/ScreenHeader';
-import { DEFAULT_GYM_PROFILES } from '@/data/defaultGymProfiles';
 import { EXERCISE_CATALOG, getExerciseById } from '@/data/exerciseCatalog';
 import { useNow } from '@/hooks/useNow';
-import { CUSTOM_GYM_PROFILE_ID, SPLIT_PRESETS } from '@/domain/types';
+import { SPLIT_PRESETS } from '@/domain/types';
 import { filterAvailableExercises } from '@/domain/equipment';
 import { focusLabelForGroups } from '@/domain/splits';
 import {
@@ -95,7 +94,7 @@ function FoldToggle({
 
 /**
  * Session flow, two modes on one route:
- *   /session                → picker: gym profile + muscle-group focus
+ *   /session                → picker: muscle-group focus (gym lives in Settings)
  *   /session?muscleGroup=x  → the recommender view for that focus
  * The session itself (clock, completed work) survives focus changes and
  * picker visits; only END SESSION closes it. The coverage strip and
@@ -105,7 +104,6 @@ function FoldToggle({
 export default function SessionScreen() {
   const { muscleGroup } = useLocalSearchParams<{ muscleGroup: string }>();
   const selectedProfileId = useAppStore((state) => state.selectedGymProfileId);
-  const selectGymProfile = useAppStore((state) => state.selectGymProfile);
   const customGym = useAppStore((state) => state.customGym);
   const historyByExercise = useAppStore((state) => state.sessionHistoryByExercise);
   const unitPreference = useAppStore((state) => state.unitPreference);
@@ -189,10 +187,6 @@ export default function SessionScreen() {
   };
 
   if (targetGroups.length === 0) {
-    const pickerProfile = getProfileById(selectedProfileId, customGym);
-    const profiles = customGym.enabled
-      ? [...DEFAULT_GYM_PROFILES, getProfileById(CUSTOM_GYM_PROFILE_ID, customGym)]
-      : [...DEFAULT_GYM_PROFILES];
     return (
       <SafeAreaView style={styles.screen}>
         <ScrollView contentContainerStyle={styles.scroll}>
@@ -205,31 +199,6 @@ export default function SessionScreen() {
                 : 'pick a day or a single muscle; the app ranks the exercises'
             }
           />
-
-          <Text style={styles.kicker}>WHERE ARE YOU TRAINING?</Text>
-          <View style={styles.chipRow}>
-            {profiles.map((p) => {
-              const active = p.id === pickerProfile.id;
-              return (
-                <Pressable
-                  key={p.id}
-                  testID={`profile-${p.id}`}
-                  onPress={() => selectGymProfile(p.id)}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: active }}
-                  accessibilityLabel={`Gym profile: ${p.name}`}
-                  style={(state) => [styles.chip, active && styles.chipActive, pressFeedback(state)]}
-                >
-                  <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>
-                    {p.name.toUpperCase()}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          <Text style={styles.hint}>
-            decides which exercises are available — change it any time
-          </Text>
 
           <Text style={styles.kicker}>
             {activeSession ? 'SWITCH FOCUS' : 'WHAT ARE YOU TRAINING?'}
@@ -387,8 +356,8 @@ export default function SessionScreen() {
 
         {showRanked && ranked.length === 0 && (
           <Text style={styles.rationale}>
-            Nothing for this focus at {profile.name.toUpperCase()} — go back and pick a gym
-            profile with more equipment, or a different muscle group.
+            Nothing for this focus at {profile.name.toUpperCase()} — pick a different muscle
+            group, or change your gym under Settings › MY GYM.
           </Text>
         )}
         {showRanked && ranked.map(({ exercise, rationale }) => {
@@ -546,12 +515,6 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     marginTop: spacing.lg,
     marginBottom: spacing.md,
-  },
-  hint: {
-    color: palette.slate,
-    fontFamily: fontFamily.mono,
-    fontSize: fontSize.caption,
-    marginTop: spacing.sm,
   },
   armedHint: {
     color: palette.schematicCyan,
